@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0c11">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Episotia">
+<title>Episotia</title>
+<style>
+:root{
+  --bg:#0a0c11; --bg2:#12151e; --bg3:#1a1e2a; --bg4:#222738; --line:#242a3a; --line2:#303752;
+  --tx:#f0f2f8; --tx2:#9aa2b8; --tx3:#5d6478;
+  --acc:#8b7cf8; --acc-2:#c084fc; --grad:linear-gradient(135deg,#8b7cf8,#c084fc);
+  --green:#34d399; --red:#fb7185; --amber:#fbbf24;
+  --rad:16px; --rad-s:10px;
+  --sab:env(safe-area-inset-bottom,0px); --sat:env(safe-area-inset-top,0px);
+  --shadow:0 4px 16px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{height:100%;overscroll-behavior-y:none}
+body{
+  background:var(--bg);color:var(--tx);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+  font-size:15px;line-height:1.45;min-height:100%;
+  padding-bottom:calc(76px + var(--sab));
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;user-select:none;-webkit-user-select:none}
+input,select{font:inherit}
+input{font-size:16px} /* prevents iOS focus zoom */
+img{display:block}
+svg{display:block}
+.hidden{display:none!important}
+::selection{background:rgba(139,124,248,.35)}
+
+/* ── header ─────────────────────────────── */
+header{
+  position:sticky;top:0;z-index:40;
+  background:rgba(10,12,17,.85);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  border-bottom:1px solid var(--line);
+  padding:calc(12px + var(--sat)) 18px 12px;
+  display:flex;align-items:center;gap:12px;
+}
+.logo{display:flex;align-items:center;gap:9px}
+.logo-mark{
+  width:30px;height:30px;border-radius:9px;background:var(--grad);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 2px 10px rgba(139,124,248,.4);
+}
+.logo-mark svg{width:16px;height:16px;fill:#fff}
+.logo h1{
+  font-size:18px;font-weight:800;letter-spacing:-.2px;
+  background:linear-gradient(135deg,#fff,#c9c2ff);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hbtns{margin-left:auto;display:flex;gap:8px}
+.icon-btn{
+  width:38px;height:38px;border-radius:12px;background:var(--bg3);
+  display:flex;align-items:center;justify-content:center;
+  border:1px solid var(--line);transition:transform .12s,background .12s;
+}
+.icon-btn svg{width:18px;height:18px;stroke:var(--tx2);stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.icon-btn:active{transform:scale(.9);background:var(--bg4)}
+#sync-pill{display:none;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--line);border-radius:20px;padding:5px 12px;font-size:12px;color:var(--tx2);font-weight:600}
+#sync-pill.on{display:flex}
+.spin{width:11px;height:11px;border:2px solid var(--acc);border-top-color:transparent;border-radius:50%;animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* ── bottom nav ─────────────────────────── */
+nav{
+  position:fixed;bottom:0;left:0;right:0;z-index:40;
+  background:rgba(13,15,22,.88);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  border-top:1px solid var(--line);
+  display:flex;padding:6px 8px calc(6px + var(--sab));
+}
+nav button{
+  flex:1;padding:7px 0 5px;display:flex;flex-direction:column;align-items:center;gap:3px;
+  font-size:10px;color:var(--tx3);font-weight:600;letter-spacing:.2px;border-radius:12px;
+  position:relative;transition:color .15s;
+}
+nav button svg{width:22px;height:22px;stroke:currentColor;stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round;transition:transform .15s}
+nav button.act{color:var(--acc)}
+nav button.act svg{transform:translateY(-1px)}
+nav button.act::before{content:"";position:absolute;top:-7px;width:24px;height:3px;border-radius:0 0 3px 3px;background:var(--grad)}
+nav .badge{
+  position:absolute;top:2px;left:calc(50% + 6px);
+  background:var(--red);color:#fff;font-size:9px;font-weight:800;
+  border-radius:9px;padding:1.5px 5.5px;box-shadow:0 0 0 2.5px var(--bg);
+}
+
+main{max-width:640px;margin:0 auto;padding:16px 16px 30px;animation:fadein .18s ease}
+@keyframes fadein{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+h2.sec{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--tx3);margin:22px 2px 10px;font-weight:800}
+.empty{text-align:center;color:var(--tx3);padding:64px 24px;font-size:14px;line-height:1.7}
+.empty .big{font-size:44px;margin-bottom:14px;filter:grayscale(.3);opacity:.9}
+
+/* ── chips ──────────────────────────────── */
+.chips{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 12px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{
+  white-space:nowrap;background:var(--bg3);border:1px solid var(--line);color:var(--tx2);
+  border-radius:20px;padding:7px 15px;font-size:13px;font-weight:600;transition:all .15s;
+}
+.chip:active{transform:scale(.95)}
+.chip.act{background:var(--grad);border-color:transparent;color:#fff;box-shadow:0 2px 10px rgba(139,124,248,.35)}
+
+/* ── cards ──────────────────────────────── */
+.card{
+  background:var(--bg2);border:1px solid var(--line);border-radius:var(--rad);
+  display:flex;gap:13px;padding:11px;margin-bottom:11px;align-items:center;
+  box-shadow:var(--shadow);
+}
+.poster{width:56px;height:80px;border-radius:var(--rad-s);object-fit:cover;background:var(--bg3);flex-shrink:0}
+.poster.ph{display:flex;align-items:center;justify-content:center;color:var(--tx3)}
+.poster.ph svg{width:22px;height:22px;stroke:var(--tx3);stroke-width:1.6;fill:none}
+.card .info{flex:1;min-width:0}
+.card .title{font-weight:700;font-size:15px;letter-spacing:-.1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .sub{font-size:13px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+.card .meta{font-size:11.5px;color:var(--tx3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.epcode{color:var(--acc);font-weight:700;font-variant-numeric:tabular-nums}
+.check-btn{
+  width:48px;height:48px;border-radius:50%;flex-shrink:0;
+  background:var(--bg3);border:1.5px solid var(--line2);
+  display:flex;align-items:center;justify-content:center;
+  transition:all .15s;
+}
+.check-btn svg{width:20px;height:20px;stroke:var(--green);stroke-width:2.4;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.check-btn:active{background:var(--green);border-color:var(--green);transform:scale(.88)}
+.check-btn:active svg{stroke:#0a0c11}
+.left-num{font-size:10.5px;color:var(--tx3);text-align:center;margin-top:4px;font-weight:600}
+.progress{height:4px;background:var(--bg3);border-radius:2px;margin-top:8px;overflow:hidden}
+.progress i{display:block;height:100%;background:var(--grad);border-radius:2px;transition:width .3s}
+.progress i.full{background:var(--green)}
+
+/* history rows */
+.hrow{display:flex;align-items:center;gap:12px;background:var(--bg2);border:1px solid var(--line);border-radius:var(--rad);padding:10px 12px;margin-bottom:9px}
+.hrow .hinfo{flex:1;min-width:0}
+.hrow .ht{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hrow .hs{font-size:12.5px;color:var(--tx2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hrow .hd{font-size:11px;color:var(--tx3);flex-shrink:0;text-align:right;line-height:1.5}
+.unmark{width:34px;height:34px;border-radius:50%;background:var(--bg3);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.unmark svg{width:15px;height:15px;stroke:var(--red);stroke-width:2.2;fill:none;stroke-linecap:round}
+.unmark:active{transform:scale(.9)}
+.hposter{width:40px;height:56px;border-radius:8px;object-fit:cover;background:var(--bg3);flex-shrink:0}
+
+/* ── upcoming ───────────────────────────── */
+.daylabel{
+  font-size:12px;font-weight:800;color:var(--tx);letter-spacing:.4px;
+  margin:20px 2px 10px;display:flex;align-items:baseline;gap:8px;
+}
+.daylabel::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--grad);align-self:center}
+.daylabel small{color:var(--tx3);font-weight:600}
+
+/* ── shows grid ─────────────────────────── */
+.searchbar{display:flex;gap:8px;margin-bottom:12px}
+.searchbar input{
+  flex:1;background:var(--bg2);border:1px solid var(--line);border-radius:14px;
+  padding:12px 16px;color:var(--tx);outline:none;transition:border .15s;
+}
+.searchbar input::placeholder{color:var(--tx3)}
+.searchbar input:focus{border-color:var(--acc)}
+.searchbar .icon-btn{width:46px;height:46px;border-radius:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(102px,1fr));gap:11px}
+.gcell{position:relative;border-radius:12px;overflow:hidden;background:var(--bg2);border:1px solid var(--line);transition:transform .12s;box-shadow:var(--shadow)}
+.gcell:active{transform:scale(.96)}
+.gcell img{width:100%;aspect-ratio:2/3;object-fit:cover}
+.gcell .gph{width:100%;aspect-ratio:2/3;display:flex;align-items:center;justify-content:center;background:var(--bg3)}
+.gcell .gph svg{width:26px;height:26px;stroke:var(--tx3);stroke-width:1.5;fill:none}
+.gcell .gt{font-size:11px;font-weight:600;padding:7px 7px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gcell .fav{position:absolute;top:5px;right:5px;width:20px;height:20px;border-radius:6px;background:rgba(10,12,17,.72);display:flex;align-items:center;justify-content:center}
+.gcell .fav svg{width:12px;height:12px;fill:var(--amber);stroke:none}
+.gcell .gbar{position:absolute;left:0;right:0;height:3px;background:rgba(0,0,0,.55)}
+.gcell .gbar i{display:block;height:100%;background:var(--grad)}
+.gcell .gbar i.full{background:var(--green)}
+
+/* ── stats ──────────────────────────────── */
+.statgrid{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.stat-card{
+  background:var(--bg2);border:1px solid var(--line);border-radius:var(--rad);
+  padding:16px;box-shadow:var(--shadow);position:relative;overflow:hidden;
+}
+.stat-card::after{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:var(--grad);opacity:.6}
+.stat-card .v{font-size:27px;font-weight:800;letter-spacing:-.5px;background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.stat-card .l{font-size:10.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2);margin-top:3px;font-weight:700}
+.bar-row{display:flex;align-items:center;gap:10px;margin-bottom:9px;font-size:13px}
+.bar-row .bl{width:112px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.bar-row .bt{flex:1;height:8px;background:var(--bg3);border-radius:4px;overflow:hidden}
+.bar-row .bt i{display:block;height:100%;background:var(--grad);border-radius:4px}
+.bar-row .bv{width:46px;text-align:right;color:var(--tx2);font-variant-numeric:tabular-nums;font-size:12px;font-weight:600}
+
+/* ── detail sheet ───────────────────────── */
+#sheet{position:fixed;inset:0;z-index:60;background:var(--bg);overflow-y:auto;padding-bottom:44px;animation:slideup .22s cubic-bezier(.2,.8,.25,1)}
+@keyframes slideup{from{transform:translateY(28px);opacity:0}to{transform:none;opacity:1}}
+.hero{position:relative;height:200px;overflow:hidden}
+.hero .hbg{position:absolute;inset:-24px;background-size:cover;background-position:center 22%;filter:blur(22px) saturate(1.15) brightness(.75);transform:scale(1.15)}
+.hero .hgrad{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(10,12,17,.25),rgba(10,12,17,.55) 55%,var(--bg))}
+.hero .hback{position:absolute;top:calc(12px + var(--sat));left:14px;z-index:3;background:rgba(10,12,17,.55);border-color:rgba(255,255,255,.12)}
+.hero .hfav{position:absolute;top:calc(12px + var(--sat));right:14px;z-index:3;background:rgba(10,12,17,.55);border-color:rgba(255,255,255,.12)}
+.hero .hfav svg{fill:none}
+.hero .hfav.on svg{fill:var(--amber);stroke:var(--amber)}
+.dwrap{max-width:640px;margin:0 auto;padding:0 16px}
+.dtop{display:flex;gap:15px;margin-top:-64px;position:relative;z-index:2}
+.dtop img,.dtop .dph{width:108px;height:158px;border-radius:14px;object-fit:cover;background:var(--bg3);flex-shrink:0;box-shadow:0 10px 30px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.08)}
+.dtop .dph{display:flex;align-items:center;justify-content:center}
+.dtop .dph svg{width:30px;height:30px;stroke:var(--tx3);stroke-width:1.5;fill:none}
+.dhead{padding-top:70px;min-width:0}
+.dtitle{font-size:20px;font-weight:800;letter-spacing:-.3px;line-height:1.2}
+.dmeta{font-size:12.5px;color:var(--tx2);margin-top:6px;line-height:1.65}
+.dprog{margin-top:18px;background:var(--bg2);border:1px solid var(--line);border-radius:var(--rad);padding:13px 15px}
+.dprog .dpr{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;color:var(--tx2);font-weight:600}
+.dprog .dpr b{color:var(--tx);font-size:16px}
+.statusrow{display:flex;gap:8px;margin:16px 0;flex-wrap:wrap}
+.actions{display:flex;gap:9px;margin-bottom:18px}
+.abtn{
+  flex:1;background:var(--bg3);border:1px solid var(--line);border-radius:13px;
+  padding:12px;font-size:13.5px;font-weight:700;text-align:center;transition:transform .12s;
+}
+.abtn:active{transform:scale(.96)}
+.abtn.primary{background:var(--grad);color:#fff;border-color:transparent;box-shadow:0 3px 12px rgba(139,124,248,.35)}
+.season{background:var(--bg2);border:1px solid var(--line);border-radius:var(--rad);margin-bottom:11px;overflow:hidden;box-shadow:var(--shadow)}
+.season-h{display:flex;align-items:center;padding:13px 15px;gap:10px;cursor:pointer}
+.season-h .sn{font-weight:800;font-size:14.5px}
+.season-h .sc{font-size:12px;color:var(--tx2);margin-left:auto;font-variant-numeric:tabular-nums;font-weight:600}
+.season-h .caret{color:var(--tx3);transition:transform .18s;font-size:12px}
+.season.open .caret{transform:rotate(90deg)}
+.season-mark{font-size:11px;font-weight:800;color:var(--acc);background:rgba(139,124,248,.13);padding:5px 11px;border-radius:14px;letter-spacing:.3px}
+.eprow{display:flex;align-items:center;gap:11px;padding:10px 15px;border-top:1px solid var(--line);font-size:13.5px;transition:background .12s}
+.eprow:active{background:var(--bg3)}
+.eprow .en{color:var(--tx3);font-variant-numeric:tabular-nums;width:30px;flex-shrink:0;font-weight:700;font-size:12px}
+.eprow .et{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eprow .ed{font-size:11px;color:var(--tx3);flex-shrink:0}
+.eprow .tick{width:30px;height:30px;border-radius:50%;border:1.5px solid var(--line2);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s}
+.eprow .tick svg{width:13px;height:13px;stroke:transparent;stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.eprow.watched .tick{background:var(--green);border-color:var(--green)}
+.eprow.watched .tick svg{stroke:#0a0c11}
+.eprow.future{opacity:.42}
+
+/* ── modal / toast ──────────────────────── */
+#modal{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.62);display:flex;align-items:flex-end;justify-content:center;animation:fadein .15s}
+.mbox{
+  background:var(--bg2);border:1px solid var(--line);border-radius:22px 22px 0 0;
+  width:100%;max-width:640px;padding:22px 20px calc(26px + var(--sab));
+  animation:slideup .22s cubic-bezier(.2,.8,.25,1);
+}
+.mbox h3{margin-bottom:14px;font-size:17px;font-weight:800}
+.mrow{display:flex;align-items:center;gap:12px;padding:14px 4px;border-bottom:1px solid var(--line);font-size:14.5px;width:100%;text-align:left;font-weight:600}
+.mrow:last-of-type{border-bottom:none}
+.mrow svg{width:19px;height:19px;stroke:var(--tx2);stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.mrow .md{margin-left:auto;font-size:12px;color:var(--tx3)}
+.toast{
+  position:fixed;bottom:calc(88px + var(--sab));left:50%;transform:translateX(-50%);
+  background:#252b3d;border:1px solid var(--line2);color:var(--tx);
+  padding:11px 18px;border-radius:26px;font-size:13.5px;font-weight:600;z-index:80;
+  box-shadow:0 8px 28px rgba(0,0,0,.5);white-space:nowrap;
+  display:flex;align-items:center;gap:14px;animation:toastin .2s cubic-bezier(.2,.8,.25,1);
+  max-width:calc(100vw - 32px);
+}
+@keyframes toastin{from{transform:translate(-50%,12px);opacity:0}to{transform:translate(-50%,0);opacity:1}}
+.toast .tmsg{overflow:hidden;text-overflow:ellipsis}
+.toast button{color:var(--acc-2);font-weight:800;font-size:13px;letter-spacing:.4px;text-transform:uppercase;flex-shrink:0}
+.note{background:var(--bg2);border:1px solid var(--line);border-radius:var(--rad);padding:13px 15px;font-size:13px;color:var(--tx2);margin-bottom:13px;line-height:1.6}
+.note b{color:var(--acc-2)}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <div class="logo-mark"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z"/></svg></div>
+    <h1>Episotia</h1>
+  </div>
+  <div id="sync-pill"><div class="spin"></div><span id="sync-txt"></span></div>
+  <div class="hbtns">
+    <button class="icon-btn" id="btn-sync" title="Sync" aria-label="Sync">
+      <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg>
+    </button>
+    <button class="icon-btn" id="btn-settings" title="Settings" aria-label="Settings">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3h.1a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5h.1a1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8v.1a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
+    </button>
+  </div>
+</header>
+
+<main id="main"></main>
+
+<nav id="nav">
+  <button data-tab="towatch" aria-label="To Watch">
+    <svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+    To Watch<span class="badge hidden" id="badge-tw"></span>
+  </button>
+  <button data-tab="upcoming" aria-label="Upcoming">
+    <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M16 3v4M8 3v4M3 10.5h18"/></svg>
+    Upcoming
+  </button>
+  <button data-tab="shows" aria-label="My Shows">
+    <svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.8"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="1.8"/><rect x="3.5" y="13" width="7.5" height="7.5" rx="1.8"/><rect x="13" y="13" width="7.5" height="7.5" rx="1.8"/></svg>
+    My Shows
+  </button>
+  <button data-tab="stats" aria-label="Stats">
+    <svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+    Stats
+  </button>
+  <button data-tab="search" aria-label="Search">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+    Search
+  </button>
+</nav>
+
+<div id="sheet" class="hidden"></div>
+<div id="modal" class="hidden"></div>
+
+<script>
+const SEED_EXPORT_DATE="2026-07-03";
+const SEED=[];
+
+</script>
+<script>
+"use strict";
+/* ============ Episotia — personal TV tracker ============ */
+const API = "https://api.tvmaze.com";
+const LS_KEY = "episotia.v1";
+const LS_OLD = "showtime.v1";
+const STATUSES = {
+  watching:      {label:"Watching"},
+  up_to_date:    {label:"Up to date"},
+  not_started_yet:{label:"Not started"},
+  watch_later:   {label:"Watch later"},
+  stopped:       {label:"Stopped"},
+};
+const I = {
+  tv:'<svg viewBox="0 0 24 24"><rect x="3" y="6.5" width="18" height="13" rx="2.5"/><path d="m8.5 2.5 3.5 4 3.5-4"/></svg>',
+  check:'<svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>',
+  x:'<svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+  star:'<svg viewBox="0 0 24 24"><polygon points="12 2 15.1 8.3 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.3 12 2"/></svg>',
+  back:'<svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>',
+  down:'<svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 5-5m-5 5-5-5M4 21h16"/></svg>',
+  up:'<svg viewBox="0 0 24 24"><path d="M12 21V9m0 0 5 5m-5-5-5 5M4 3h16"/></svg>',
+  refresh:'<svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg>',
+  trash:'<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>',
+  search:'<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>',
+};
+let state = null;
+let tab = "towatch";
+let searchResults = [];
+let searchAdded = {};
+let currentSheetKey = null;
+
+/* ---------- utils ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+function fmtDate(a){
+  if(!a) return "TBA";
+  const d = new Date(a+"T12:00:00");
+  return d.toLocaleDateString(undefined,{day:"numeric",month:"short",year: d.getFullYear()!==new Date().getFullYear()?"numeric":undefined});
+}
+function relDays(a){
+  const ms = new Date(a+"T12:00:00") - new Date(todayStr()+"T12:00:00");
+  const days = Math.round(ms/86400000);
+  if(days===0) return "today";
+  if(days===1) return "tomorrow";
+  if(days<0) return Math.abs(days)+"d ago";
+  if(days<30) return "in "+days+" days";
+  const m = Math.round(days/30);
+  return "in "+m+" month"+(m>1?"s":"");
+}
+function agoStr(ts){
+  const d = Date.now()-ts;
+  if(d<60000) return "just now";
+  if(d<3600000) return Math.floor(d/60000)+"m ago";
+  if(d<86400000) return Math.floor(d/3600000)+"h ago";
+  if(d<7*86400000) return Math.floor(d/86400000)+"d ago";
+  const dt = new Date(ts);
+  return fmtDate(dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,"0")+"-"+String(dt.getDate()).padStart(2,"0"));
+}
+function epCode(s,n){ return "S"+String(s).padStart(2,"0")+"E"+String(n).padStart(2,"0"); }
+function toast(msg, ms=2400, action=null){
+  document.querySelectorAll(".toast").forEach(t=>t.remove());
+  const t = document.createElement("div");
+  t.className = "toast";
+  const span = document.createElement("span");
+  span.className = "tmsg"; span.textContent = msg;
+  t.appendChild(span);
+  if(action){
+    const b = document.createElement("button");
+    b.textContent = action.label;
+    b.onclick = () => { t.remove(); action.fn(); };
+    t.appendChild(b);
+  }
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), ms);
+}
+function save(){
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+  catch(e){ toast("⚠️ Storage full — export a backup!"); }
+}
+
+/* ---------- state / seed ---------- */
+function seedShowObj(d){ // d = {t,d,s,f,u,w} compact seed entry
+  return {
+    key:"db"+d.d, tvdbId:d.d, tvmazeId:null, title:d.t,
+    status: d.s==="continuing" ? "watching" : d.s,
+    fav: !!d.f, image:null, genres:[], network:"", runtime:null,
+    premiered:null, tvStatus:"", eps:null, watched:{},
+    seedUnwatched:d.u, seedWatched:d.w, seeded:false, lastSync:0
+  };
+}
+function load(){
+  let raw = localStorage.getItem(LS_KEY);
+  if(!raw){ // migrate from pre-rename key
+    raw = localStorage.getItem(LS_OLD);
+    if(raw){ localStorage.setItem(LS_KEY, raw); localStorage.removeItem(LS_OLD); }
+  }
+  if(raw){ try{ state = JSON.parse(raw); }catch(e){ state = null; } }
+  if(!state){
+    state = { shows:{}, lastGlobalSync:0, createdAt:Date.now() };
+    if(typeof SEED !== "undefined"){
+      for(const s of SEED) state.shows["db"+s.d] = seedShowObj(s);
+      if(SEED.length) save();
+    }
+  }
+}
+
+/* ---------- derived ---------- */
+function allShows(){ return Object.values(state.shows); }
+function isFollowed(sh){ return sh.status !== "stopped"; }
+function airedList(sh){
+  if(!sh.eps) return [];
+  const t = todayStr();
+  return sh.eps.filter(e => e.s>=1 && e.a && e.a <= t);
+}
+function futureList(sh){
+  if(!sh.eps) return [];
+  const t = todayStr();
+  return sh.eps.filter(e => e.s>=1 && e.a && e.a > t);
+}
+function wkey(e){ return e.s+"-"+e.n; }
+function remaining(sh){ return airedList(sh).filter(e => !sh.watched[wkey(e)]).length; }
+function nextUnwatched(sh){
+  return airedList(sh).find(e => !sh.watched[wkey(e)]) || null;
+}
+function watchedCount(sh){
+  if(sh.eps) return Object.keys(sh.watched).length;
+  return sh.seedWatched || 0;
+}
+function totalRegular(sh){
+  return sh.eps ? sh.eps.filter(e=>e.s>=1).length : (sh.seedWatched||0) + (sh.seedUnwatched?sh.seedUnwatched.length:0);
+}
+function autoStatus(sh, userAction=false){
+  if(sh.status==="stopped" && !userAction) return; // manual choice, respect it unless the user acts
+  if(!sh.eps) return;
+  const rem = remaining(sh);
+  const wc = Object.keys(sh.watched).length;
+  if(wc===0){
+    if(sh.status!=="watch_later") sh.status = "not_started_yet";
+  } else {
+    sh.status = rem===0 ? "up_to_date" : "watching";
+  }
+}
+function deriveFromSeed(sh){
+  if(sh.seeded || !sh.eps) return;
+  const unw = new Set((sh.seedUnwatched||[]).map(p => p[0]+"-"+p[1]));
+  const cutoff = sh.seedCutoff || ((typeof SEED_EXPORT_DATE!=="undefined") ? SEED_EXPORT_DATE : todayStr());
+  for(const e of sh.eps){
+    if(e.s>=1 && e.a && e.a <= cutoff && !unw.has(wkey(e))) sh.watched[wkey(e)] = 1;
+  }
+  sh.seeded = true;
+  delete sh.seedUnwatched;
+}
+
+/* ---------- sync engine ---------- */
+let syncing = false;
+async function apiGet(path){
+  for(let att=0; att<4; att++){
+    let r;
+    try{ r = await fetch(API+path); }
+    catch(e){ await sleep(2000*(att+1)); continue; }
+    if(r.status===429){ await sleep(3000); continue; }
+    if(r.status===404) return null;
+    if(!r.ok){ await sleep(1500); continue; }
+    return r.json();
+  }
+  throw new Error("network");
+}
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+function applyMeta(sh, d){
+  sh.tvmazeId = d.id;
+  sh.title = d.name || sh.title;
+  sh.image = d.image ? d.image.medium : sh.image;
+  sh.genres = d.genres || [];
+  sh.network = (d.network && d.network.name) || (d.webChannel && d.webChannel.name) || "";
+  sh.runtime = d.averageRuntime || d.runtime || sh.runtime;
+  sh.premiered = d.premiered || null;
+  sh.tvStatus = d.status || "";
+}
+function applyEps(sh, eps){
+  sh.eps = eps.map(e => ({ s:e.season, n:e.number, t:e.name||"", a:e.airdate||null, r:e.runtime||null }));
+  deriveFromSeed(sh);
+  autoStatus(sh);
+  sh.lastSync = Date.now();
+}
+async function syncShow(sh){
+  if(!sh.tvmazeId){
+    if(!sh.tvdbId) return false;
+    const d = await apiGet("/lookup/shows?thetvdb="+sh.tvdbId);
+    if(!d){ sh.lookupFailed = true; return false; }
+    applyMeta(sh, d);
+    await sleep(420);
+  } else {
+    const d = await apiGet("/shows/"+sh.tvmazeId);
+    if(d) applyMeta(sh, d);
+    await sleep(420);
+  }
+  const eps = await apiGet("/shows/"+sh.tvmazeId+"/episodes");
+  if(eps) applyEps(sh, eps);
+  return true;
+}
+function setSyncPill(txt){
+  const p = $("#sync-pill");
+  if(txt===null){ p.classList.remove("on"); return; }
+  p.classList.add("on"); $("#sync-txt").textContent = txt;
+}
+async function syncAll(full=false){
+  if(syncing) return;
+  syncing = true;
+  const day = 86400000;
+  let list = allShows().filter(sh => {
+    if(!sh.tvmazeId) return !sh.lookupFailed || full;
+    if(!sh.eps) return true;
+    if(full) return true;
+    if(sh.tvStatus==="Ended" && sh.seeded) return false;      // ended + already loaded: nothing new
+    return Date.now() - sh.lastSync > day;                     // running shows: refresh daily
+  });
+  const prio = {watching:0, up_to_date:1, not_started_yet:2, watch_later:2, stopped:3};
+  list.sort((a,b)=> (prio[a.status]??2)-(prio[b.status]??2));
+  if(!list.length){ syncing=false; setSyncPill(null); toast("Everything is up to date ✓"); return; }
+  let done=0, fails=0;
+  for(const sh of list){
+    setSyncPill(`Syncing ${done+1}/${list.length}`);
+    try{ const ok = await syncShow(sh); if(!ok) fails++; }
+    catch(e){ fails++; }
+    done++;
+    if(done%8===0){
+      save();
+      const ae = document.activeElement;           // don't wipe what the user is typing
+      if(!ae || (ae.tagName!=="INPUT" && ae.tagName!=="TEXTAREA")) render();
+    }
+    await sleep(420);
+  }
+  state.lastGlobalSync = Date.now();
+  save(); render();
+  syncing=false; setSyncPill(null);
+  toast(fails ? `Sync done — ${fails} show(s) need manual matching` : "Sync complete ✓");
+}
+
+/* ---------- unmatched shows fixer ---------- */
+function unmatchedList(){ return allShows().filter(sh => !sh.eps && sh.lookupFailed); }
+let matchResults = [], matchKey = null;
+function openUnmatched(){
+  const list = unmatchedList();
+  $("#modal").innerHTML = `<div class="mbox" onclick="event.stopPropagation()">
+    <h3>Not matched on TVmaze (${list.length})</h3>
+    <div style="max-height:52vh;overflow-y:auto">
+    ${list.map(sh=>`<button class="mrow" onclick="findMatch('${sh.key}')">${esc(sh.title)}<span class="md">Find match ›</span></button>`).join("") || '<div class="note">All shows matched 🎉</div>'}
+    </div>
+    <div class="note" style="margin-top:12px">TVmaze has no automatic link for these TVDB entries. Tap one to search by name and pick the right show. If it truly isn't on TVmaze, you can <b>remove it</b> in My Shows (its episode count still counts in your stats).</div>
+  </div>`;
+  $("#modal").classList.remove("hidden");
+  $("#modal").onclick = closeModal;
+}
+async function findMatch(key){
+  const sh = state.shows[key];
+  matchKey = key;
+  toast("Searching…", 1200);
+  try{ matchResults = await apiGet("/search/shows?q="+encodeURIComponent(sh.title)) || []; }
+  catch(e){ toast("Network error — try again"); return; }
+  $("#modal").innerHTML = `<div class="mbox" onclick="event.stopPropagation()">
+    <h3>Match “${esc(sh.title)}”</h3>
+    <div style="max-height:52vh;overflow-y:auto">
+    ${matchResults.map((r,i)=>{
+      const d = r.show;
+      return `<button class="mrow" onclick="linkMatch(${i})">${esc(d.name)}<span class="md">${d.premiered?d.premiered.slice(0,4):"?"} · ${esc((d.network&&d.network.name)||(d.webChannel&&d.webChannel.name)||"")}</span></button>`;
+    }).join("") || '<div class="note">No results — this show may not exist on TVmaze.</div>'}
+    </div>
+    <button class="abtn" style="width:100%;margin-top:12px" onclick="openUnmatched()">‹ Back to list</button>
+  </div>`;
+}
+async function linkMatch(i){
+  const sh = state.shows[matchKey];
+  const d = matchResults[i] && matchResults[i].show;
+  if(!sh || !d) return;
+  applyMeta(sh, d);
+  delete sh.lookupFailed;
+  save();
+  toast(`Linked to ${d.name} — loading episodes…`);
+  try{ const eps = await apiGet("/shows/"+d.id+"/episodes"); if(eps){ applyEps(sh, eps); save(); } }
+  catch(e){}
+  openUnmatched(); render();
+}
+function dismissUnmatched(){
+  state.unmatchedDismissed = true; save(); render();
+  toast("Hidden — fix them anytime in Settings");
+}
+
+/* ---------- actions + undo ---------- */
+let undoData = null;
+function registerUndo(showKey, keys, msg){
+  if(!keys.length) return;
+  undoData = {showKey, keys};
+  toast(msg, 6000, {label:"Undo", fn:undoLast});
+}
+function undoLast(){
+  if(!undoData) return;
+  const sh = state.shows[undoData.showKey];
+  if(sh){
+    for(const k of undoData.keys) delete sh.watched[k];
+    autoStatus(sh, true);
+    save();
+  }
+  undoData = null;
+  if(currentSheetKey && !$("#sheet").classList.contains("hidden")) renderSheet(currentSheetKey);
+  render();
+  toast("Undone ↩");
+}
+function markWatched(sh, e, on=true){
+  if(on) sh.watched[wkey(e)] = Date.now(); else delete sh.watched[wkey(e)];
+  autoStatus(sh, true);
+  save();
+}
+function markSeason(sh, season){
+  const t = todayStr(), added = [];
+  for(const e of sh.eps){
+    if(e.s===season && e.a && e.a<=t && !sh.watched[wkey(e)]){
+      sh.watched[wkey(e)] = Date.now(); added.push(wkey(e));
+    }
+  }
+  autoStatus(sh, true); save();
+  registerUndo(sh.key, added, `Season ${season}: ${added.length} marked ✓`);
+}
+function markAll(sh){
+  const added = [];
+  for(const e of airedList(sh)){
+    if(!sh.watched[wkey(e)]){ sh.watched[wkey(e)] = Date.now(); added.push(wkey(e)); }
+  }
+  autoStatus(sh, true); save();
+  registerUndo(sh.key, added, `${added.length} episodes marked ✓`);
+}
+
+/* ---------- rendering ---------- */
+function render(){
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("act", b.dataset.tab===tab));
+  const m = $("#main");
+  if(tab==="towatch") m.innerHTML = viewToWatch();
+  else if(tab==="upcoming") m.innerHTML = viewUpcoming();
+  else if(tab==="shows") m.innerHTML = viewShows();
+  else if(tab==="stats") m.innerHTML = viewStats();
+  else if(tab==="search") m.innerHTML = viewSearch();
+  updateBadge();
+}
+function updateBadge(){
+  const n = allShows().filter(sh=>sh.status==="watching"&&sh.eps&&remaining(sh)>0).length;
+  const b = $("#badge-tw");
+  b.classList.toggle("hidden", !n);
+  b.textContent = n;
+}
+function posterImg(sh){
+  return sh.image ? `<img class="poster" src="${esc(sh.image)}" loading="lazy" alt="">`
+                  : `<div class="poster ph">${I.tv}</div>`;
+}
+let twFilter = "watching";
+function viewToWatch(){
+  let h = `<div class="chips">
+    <button class="chip ${twFilter==="watching"?"act":""}" onclick="twFilter='watching';render()">Watching</button>
+    <button class="chip ${twFilter==="not_started_yet"?"act":""}" onclick="twFilter='not_started_yet';render()">Not started</button>
+    <button class="chip ${twFilter==="watch_later"?"act":""}" onclick="twFilter='watch_later';render()">Watch later</button>
+    <button class="chip ${twFilter==="all"?"act":""}" onclick="twFilter='all';render()">All</button>
+    <button class="chip ${twFilter==="history"?"act":""}" onclick="twFilter='history';render()">History</button>
+  </div>`;
+  if(twFilter==="history") return h + viewHistory();
+  if(!allShows().length){
+    return h + `<div class="empty"><div class="big">👋</div>Welcome to Episotia!<br><br>Add shows in the <b>Search</b> tab, or import your<br>TV Time export / a backup in <b>Settings</b>.</div>`;
+  }
+  const pending = allShows().filter(sh=>!sh.eps && isFollowed(sh) && !sh.lookupFailed).length;
+  const failed = unmatchedList().length;
+  let items = allShows().filter(sh => isFollowed(sh) && sh.eps && remaining(sh)>0);
+  if(twFilter!=="all") items = items.filter(sh => sh.status===twFilter);
+  items.sort((a,b) => {
+    const da = nextUnwatched(a).a||"", db = nextUnwatched(b).a||"";
+    return da<db ? 1 : da>db ? -1 : a.title.localeCompare(b.title);
+  });
+  if(pending) h += `<div class="note"><b>${pending} shows</b> still need their episode data. Tap the sync button above (keep the page open).</div>`;
+  if(failed && !state.unmatchedDismissed) h += `<div class="note" style="display:flex;gap:10px;align-items:center"><span style="flex:1;cursor:pointer" onclick="openUnmatched()"><b>${failed} shows</b> couldn't be matched on TVmaze automatically. <b>Tap to review</b>.</span><button class="unmark" onclick="dismissUnmatched()" aria-label="Dismiss">${I.x}</button></div>`;
+  if(!items.length) h += `<div class="empty"><div class="big">🎉</div>Nothing to watch here.<br>You're all caught up!</div>`;
+  for(const sh of items){
+    const e = nextUnwatched(sh), rem = remaining(sh);
+    const wc = Object.keys(sh.watched).length, tot = totalRegular(sh);
+    h += `<div class="card">
+      ${posterImg(sh)}
+      <div class="info" onclick="openShow('${sh.key}')">
+        <div class="title">${esc(sh.title)}</div>
+        <div class="sub"><span class="epcode">${epCode(e.s,e.n)}</span> · ${esc(e.t)}</div>
+        <div class="meta">aired ${fmtDate(e.a)}${sh.network?" · "+esc(sh.network):""}</div>
+        <div class="progress"><i style="width:${tot?Math.round(wc/tot*100):0}%"></i></div>
+      </div>
+      <div>
+        <button class="check-btn" onclick="quickWatch('${sh.key}')" aria-label="Mark watched">${I.check}</button>
+        <div class="left-num">${rem} left</div>
+      </div>
+    </div>`;
+  }
+  return h;
+}
+function viewHistory(){
+  const hist = [];
+  for(const sh of allShows()){
+    for(const [k,ts] of Object.entries(sh.watched)){
+      if(ts>1) hist.push({sh, k, ts});
+    }
+  }
+  hist.sort((a,b)=>b.ts-a.ts);
+  if(!hist.length) return `<div class="empty"><div class="big">🕐</div>Episodes you mark as watched<br>will appear here.<br><br><span style="font-size:12px">(Your imported TV Time history has no<br>timestamps, so it starts fresh from today.)</span></div>`;
+  let h = "";
+  for(const {sh,k,ts} of hist.slice(0,150)){
+    const [s,n] = k.split("-").map(Number);
+    const ep = sh.eps ? sh.eps.find(e=>e.s===s&&e.n===n) : null;
+    h += `<div class="hrow">
+      ${sh.image?`<img class="hposter" src="${esc(sh.image)}" loading="lazy" alt="">`:`<div class="hposter poster ph">${I.tv}</div>`}
+      <div class="hinfo" onclick="openShow('${sh.key}')">
+        <div class="ht">${esc(sh.title)}</div>
+        <div class="hs"><span class="epcode">${epCode(s,n)}</span>${ep&&ep.t?" · "+esc(ep.t):""}</div>
+      </div>
+      <div class="hd">${agoStr(ts)}</div>
+      <button class="unmark" onclick="unmarkHistory('${sh.key}','${k}')" aria-label="Un-mark">${I.x}</button>
+    </div>`;
+  }
+  return h;
+}
+function unmarkHistory(showKey, k){
+  const sh = state.shows[showKey];
+  if(!sh) return;
+  delete sh.watched[k];
+  autoStatus(sh, true); save(); render();
+  toast("Removed from history");
+}
+function viewUpcoming(){
+  const t = todayStr();
+  const rows = [];
+  for(const sh of allShows()){
+    if(!isFollowed(sh)) continue;
+    for(const e of futureList(sh)) rows.push({sh, e});
+  }
+  rows.sort((a,b)=> a.e.a < b.e.a ? -1 : a.e.a > b.e.a ? 1 : 0);
+  const soon = rows.filter(r => (new Date(r.e.a) - new Date(t)) < 120*86400000);
+  if(!soon.length) return `<div class="empty"><div class="big">📅</div>No scheduled episodes in the next months.<br>New dates appear after each sync.</div>`;
+  let h = "", lastDate = "";
+  for(const {sh,e} of soon){
+    if(e.a !== lastDate){
+      lastDate = e.a;
+      h += `<div class="daylabel">${fmtDate(e.a)}<small>${relDays(e.a)}</small></div>`;
+    }
+    h += `<div class="card">
+      ${posterImg(sh)}
+      <div class="info" onclick="openShow('${sh.key}')">
+        <div class="title">${esc(sh.title)}</div>
+        <div class="sub"><span class="epcode">${epCode(e.s,e.n)}</span> · ${esc(e.t||"TBA")}</div>
+        <div class="meta">${sh.network?esc(sh.network):""}</div>
+      </div>
+    </div>`;
+  }
+  return h;
+}
+let showFilter = "all", showQuery = "";
+function viewShows(){
+  let items = allShows();
+  if(showFilter==="fav") items = items.filter(s=>s.fav);
+  else if(showFilter!=="all") items = items.filter(s=>s.status===showFilter);
+  if(showQuery) items = items.filter(s=>s.title.toLowerCase().includes(showQuery.toLowerCase()));
+  items.sort((a,b)=>a.title.localeCompare(b.title));
+  const counts = {};
+  for(const s of allShows()) counts[s.status] = (counts[s.status]||0)+1;
+  let h = `<div class="searchbar"><input id="show-q" placeholder="Filter my ${allShows().length} shows…" value="${esc(showQuery)}" oninput="showQuery=this.value;renderKeepFocus('show-q')"></div>
+  <div class="chips">
+    <button class="chip ${showFilter==="all"?"act":""}" onclick="showFilter='all';render()">All</button>
+    <button class="chip ${showFilter==="fav"?"act":""}" onclick="showFilter='fav';render()">★ Favorites</button>
+    ${Object.entries(STATUSES).map(([k,v]) =>
+      `<button class="chip ${showFilter===k?"act":""}" onclick="showFilter='${k}';render()">${v.label} (${counts[k]||0})</button>`).join("")}
+  </div><div class="grid">`;
+  for(const sh of items){
+    const wc = watchedCount(sh), tot = totalRegular(sh);
+    const pct = tot ? Math.round(wc/tot*100) : 0;
+    h += `<div class="gcell" onclick="openShow('${sh.key}')">
+      ${sh.image ? `<img src="${esc(sh.image)}" loading="lazy" alt="">` : `<div class="gph">${I.tv}</div>`}
+      ${sh.fav ? `<div class="fav">${I.star}</div>` : ""}
+      <div class="gbar"><i class="${pct>=100?"full":""}" style="width:${pct}%"></i></div>
+      <div class="gt">${esc(sh.title)}</div>
+    </div>`;
+  }
+  h += "</div>";
+  if(!items.length) h += `<div class="empty"><div class="big">🤷</div>No shows match.</div>`;
+  return h;
+}
+function viewStats(){
+  const shows = allShows();
+  let eps = 0, mins = 0, newThisMonth = 0;
+  const now = new Date(); const mStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const perShow = [], genreMin = {};
+  for(const sh of shows){
+    const wc = watchedCount(sh);
+    eps += wc;
+    const rt = sh.runtime || 40;
+    mins += wc*rt;
+    perShow.push([sh.title, wc]);
+    for(const g of (sh.genres||[])) genreMin[g] = (genreMin[g]||0) + wc;
+    for(const v of Object.values(sh.watched)) if(v>1 && v>=mStart) newThisMonth++;
+  }
+  const days = Math.floor(mins/1440), hrs = Math.floor(mins%1440/60);
+  const counts = {};
+  for(const s of shows) counts[s.status] = (counts[s.status]||0)+1;
+  perShow.sort((a,b)=>b[1]-a[1]);
+  const topShows = perShow.slice(0,8).filter(x=>x[1]>0);
+  const topGenres = Object.entries(genreMin).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const maxS = topShows[0] ? topShows[0][1] : 1, maxG = topGenres[0] ? topGenres[0][1] : 1;
+  return `
+  <div class="statgrid">
+    <div class="stat-card"><div class="v">${eps.toLocaleString()}</div><div class="l">Episodes watched</div></div>
+    <div class="stat-card"><div class="v">${days}<span style="font-size:15px">d</span> ${hrs}<span style="font-size:15px">h</span></div><div class="l">Time spent</div></div>
+    <div class="stat-card"><div class="v">${shows.length}</div><div class="l">Shows tracked</div></div>
+    <div class="stat-card"><div class="v">${newThisMonth}</div><div class="l">Eps this month</div></div>
+  </div>
+  <h2 class="sec">By status</h2>
+  ${Object.entries(STATUSES).map(([k,v])=>{
+    const n = counts[k]||0;
+    return `<div class="bar-row"><div class="bl">${v.label}</div><div class="bt"><i style="width:${shows.length?n/shows.length*100:0}%"></i></div><div class="bv">${n}</div></div>`;
+  }).join("")}
+  <h2 class="sec">Most watched</h2>
+  ${topShows.map(([t,n])=>`<div class="bar-row"><div class="bl">${esc(t)}</div><div class="bt"><i style="width:${n/maxS*100}%"></i></div><div class="bv">${n}</div></div>`).join("") || '<div class="empty">Sync first to see this.</div>'}
+  <h2 class="sec">Top genres</h2>
+  ${topGenres.map(([g,n])=>`<div class="bar-row"><div class="bl">${esc(g)}</div><div class="bt"><i style="width:${n/maxG*100}%"></i></div><div class="bv">${n}</div></div>`).join("") || '<div class="empty">Sync first to see this.</div>'}`;
+}
+function viewSearch(){
+  let h = `<div class="searchbar">
+    <input id="q" placeholder="Search any show…" value="" onkeydown="if(event.key==='Enter')doSearch()">
+    <button class="icon-btn" onclick="doSearch()">${I.search}</button>
+  </div>`;
+  if(!searchResults.length) h += `<div class="empty"><div class="big">🔍</div>Search TVmaze and add shows<br>to your library.</div>`;
+  for(const r of searchResults){
+    const d = r.show;
+    const exists = allShows().some(s=>s.tvmazeId===d.id) || searchAdded[d.id];
+    h += `<div class="card">
+      ${d.image?`<img class="poster" src="${esc(d.image.medium)}" alt="">`:`<div class="poster ph">${I.tv}</div>`}
+      <div class="info">
+        <div class="title">${esc(d.name)}</div>
+        <div class="sub">${d.premiered?d.premiered.slice(0,4):"?"} · ${esc((d.network&&d.network.name)||(d.webChannel&&d.webChannel.name)||"")}</div>
+        <div class="meta">${(d.genres||[]).slice(0,3).map(esc).join(" · ")}</div>
+      </div>
+      <button class="abtn ${exists?"":"primary"}" style="flex:0 0 auto" ${exists?"disabled":""} onclick="addShow(${d.id})">${exists?"✓ Added":"+ Add"}</button>
+    </div>`;
+  }
+  return h;
+}
+
+/* keep focus when filtering */
+function renderKeepFocus(id){
+  const el = document.getElementById(id);
+  const pos = el.selectionStart;
+  render();
+  const el2 = document.getElementById(id);
+  if(el2){ el2.focus(); el2.setSelectionRange(pos,pos); }
+}
+
+/* ---------- detail sheet ---------- */
+let openSeasons = {};
+function openShow(key){
+  const sh = state.shows[key];
+  if(!sh) return;
+  currentSheetKey = key;
+  openSeasons = {};
+  const nx = sh.eps && nextUnwatched(sh);
+  if(nx) openSeasons[nx.s] = true;
+  renderSheet(key);
+  $("#sheet").classList.remove("hidden");
+  window.scrollTo(0,0);
+}
+function closeSheet(){ $("#sheet").classList.add("hidden"); currentSheetKey = null; render(); }
+function renderSheet(key){
+  const sh = state.shows[key];
+  const wc = watchedCount(sh), tot = totalRegular(sh);
+  const pct = tot ? Math.round(wc/tot*100) : 0;
+  let seasonsHtml = "";
+  if(sh.eps){
+    const bySeason = {};
+    for(const e of sh.eps){ if(e.s>=1) (bySeason[e.s] = bySeason[e.s]||[]).push(e); }
+    const t = todayStr();
+    for(const sn of Object.keys(bySeason).map(Number).sort((a,b)=>a-b)){
+      const eps = bySeason[sn];
+      const w = eps.filter(e=>sh.watched[wkey(e)]).length;
+      const open = !!openSeasons[sn];
+      seasonsHtml += `<div class="season ${open?"open":""}">
+        <div class="season-h" onclick="toggleSeason('${key}',${sn})">
+          <span class="caret">▶</span><span class="sn">Season ${sn}</span>
+          ${w<eps.filter(e=>e.a&&e.a<=t).length?`<button class="season-mark" onclick="event.stopPropagation();markSeasonUi('${key}',${sn})">MARK ALL</button>`:""}
+          <span class="sc">${w}/${eps.length}</span>
+        </div>
+        ${open ? eps.map(e=>{
+          const future = !e.a || e.a > t;
+          const on = !!sh.watched[wkey(e)];
+          return `<div class="eprow ${on?"watched":""} ${future?"future":""}" onclick="${future?"":`toggleEp('${key}',${e.s},${e.n})`}">
+            <span class="en">${e.n}</span><span class="et">${esc(e.t||"Episode "+e.n)}</span>
+            <span class="ed">${e.a?fmtDate(e.a):"TBA"}</span><span class="tick">${I.check}</span>
+          </div>`;
+        }).join("") : ""}
+      </div>`;
+    }
+  } else if(sh.lookupFailed){
+    seasonsHtml = `<div class="note">This show couldn't be matched on TVmaze automatically.</div>
+      <button class="abtn primary" style="width:100%" onclick="findMatch('${key}');$('#modal').classList.remove('hidden');$('#modal').onclick=closeModal">Find the right match</button>`;
+  } else {
+    seasonsHtml = `<div class="note">Episode list not loaded yet. <b>Sync</b> to load it.</div>
+      <button class="abtn primary" style="width:100%" onclick="loadOne('${key}')">Load episodes now</button>`;
+  }
+  const metaBits = [
+    sh.network ? esc(sh.network) : "",
+    sh.tvStatus ? (sh.tvStatus==="Ended" ? "Ended" : esc(sh.tvStatus)) : "",
+    sh.premiered ? sh.premiered.slice(0,4) : "",
+    sh.runtime ? sh.runtime+" min" : ""
+  ].filter(Boolean).join(" · ");
+  $("#sheet").innerHTML = `
+  <div class="hero">
+    ${sh.image?`<div class="hbg" style="background-image:url('${esc(sh.image)}')"></div>`:`<div class="hbg" style="background:var(--bg3)"></div>`}
+    <div class="hgrad"></div>
+    <button class="icon-btn hback" onclick="closeSheet()" aria-label="Back">${I.back}</button>
+    <button class="icon-btn hfav ${sh.fav?"on":""}" onclick="toggleFav('${key}')" aria-label="Favorite">${I.star}</button>
+  </div>
+  <div class="dwrap">
+    <div class="dtop">
+      ${sh.image?`<img src="${esc(sh.image)}" alt="">`:`<div class="dph">${I.tv}</div>`}
+      <div class="dhead">
+        <div class="dtitle">${esc(sh.title)}</div>
+        <div class="dmeta">${metaBits}${(sh.genres&&sh.genres.length)?"<br>"+sh.genres.slice(0,3).map(esc).join(" · "):""}</div>
+      </div>
+    </div>
+    <div class="dprog">
+      <div class="dpr"><span><b>${wc}</b> / ${tot} episodes</span><span>${pct}%</span></div>
+      <div class="progress"><i class="${tot&&wc>=tot?"full":""}" style="width:${pct}%"></i></div>
+    </div>
+    <div class="statusrow">
+      ${Object.entries(STATUSES).map(([k,v])=>
+        `<button class="chip ${sh.status===k?"act":""}" onclick="setStatus('${key}','${k}')">${v.label}</button>`).join("")}
+    </div>
+    <div class="actions">
+      ${sh.eps&&remaining(sh)>0?`<button class="abtn primary" onclick="markAllUi('${key}')">✓ Mark all watched</button>`:""}
+      <button class="abtn" style="color:var(--red)" onclick="removeShow('${key}')">Remove</button>
+    </div>
+    ${seasonsHtml}
+  </div>`;
+}
+function markAllUi(key){ markAll(state.shows[key]); renderSheet(key); }
+function markSeasonUi(key, sn){ markSeason(state.shows[key], sn); renderSheet(key); }
+function toggleSeason(key, sn){ openSeasons[sn] = !openSeasons[sn]; renderSheet(key); }
+function toggleEp(key, s, n){
+  const sh = state.shows[key];
+  const e = sh.eps.find(x=>x.s===s&&x.n===n);
+  markWatched(sh, e, !sh.watched[wkey(e)]);
+  renderSheet(key);
+}
+function toggleFav(key){ const sh=state.shows[key]; sh.fav=!sh.fav; save(); renderSheet(key); }
+function setStatus(key, st){
+  const sh = state.shows[key];
+  sh.status = st; save(); renderSheet(key);
+}
+function removeShow(key){
+  const sh = state.shows[key];
+  if(!confirm(`Remove "${sh.title}" and its watch history?`)) return;
+  delete state.shows[key]; save(); closeSheet();
+}
+async function loadOne(key){
+  const sh = state.shows[key];
+  toast("Loading…");
+  try{ await syncShow(sh); save(); renderSheet(key); }
+  catch(e){ toast("Network error — try again"); }
+}
+function quickWatch(key){
+  const sh = state.shows[key];
+  const e = nextUnwatched(sh);
+  if(!e) return;
+  const k = wkey(e);
+  sh.watched[k] = Date.now();
+  autoStatus(sh, true); save();
+  registerUndo(sh.key, [k], `✓ ${sh.title} ${epCode(e.s,e.n)}`);
+  render();
+}
+
+/* ---------- search / add ---------- */
+async function doSearch(){
+  const q = $("#q").value.trim();
+  if(!q) return;
+  toast("Searching…",1200);
+  try{
+    searchResults = await apiGet("/search/shows?q="+encodeURIComponent(q)) || [];
+    render();
+    const el = $("#q"); if(el){ el.value = q; }
+  }catch(e){ toast("Network error"); }
+}
+async function addShow(tvmazeId){
+  const r = searchResults.find(x=>x.show.id===tvmazeId);
+  if(!r) return;
+  const d = r.show;
+  const key = "tv"+d.id;
+  if(state.shows[key]) return;
+  const sh = { key, tvdbId:(d.externals&&d.externals.thetvdb)||null, tvmazeId:null, title:d.name,
+    status:"not_started_yet", fav:false, image:null, genres:[], network:"", runtime:null,
+    premiered:null, tvStatus:"", eps:null, watched:{}, seeded:true, lastSync:0 };
+  applyMeta(sh, d);
+  state.shows[key] = sh;
+  searchAdded[d.id] = true;
+  save(); render();
+  toast(`Added ${d.name} — loading episodes…`);
+  try{ const eps = await apiGet("/shows/"+d.id+"/episodes"); if(eps){ applyEps(sh, eps); save(); render(); } }
+  catch(e){}
+}
+
+/* ---------- settings / backup / import ---------- */
+function openSettings(){
+  const kb = Math.round((localStorage.getItem(LS_KEY)||"").length/1024);
+  $("#modal").innerHTML = `<div class="mbox" onclick="event.stopPropagation()">
+    <h3>Settings</h3>
+    <button class="mrow" onclick="exportBackup()">${I.down}Export backup (JSON)<span class="md">${kb} KB</span></button>
+    <button class="mrow" onclick="document.getElementById('imp').click()">${I.up}Import backup / TV Time export<span class="md">.json / .html</span></button>
+    ${unmatchedList().length?`<button class="mrow" onclick="openUnmatched()">${I.search}Fix unmatched shows<span class="md">${unmatchedList().length}</span></button>`:""}
+    <button class="mrow" onclick="closeModal();syncAll(true)">${I.refresh}Full re-sync (all shows)</button>
+    <button class="mrow" style="color:var(--red)" onclick="resetAll()">${I.trash}Reset all data</button>
+    <div class="note" style="margin-top:14px">Your data lives only in this browser, on this device. Export a backup regularly — and use import to move it to another phone. Import also accepts a <b>TV Time export</b> (.html from the "TV Time Out" Chrome extension) to fill a fresh library.</div>
+    <input type="file" id="imp" accept=".json,.html,.htm,application/json,text/html" class="hidden" onchange="importFile(this.files[0])">
+  </div>`;
+  $("#modal").classList.remove("hidden");
+  $("#modal").onclick = closeModal;
+}
+function closeModal(){ $("#modal").classList.add("hidden"); }
+function exportBackup(){
+  const blob = new Blob([JSON.stringify(state)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "episotia-backup-"+todayStr()+".json";
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+}
+function importFile(file){
+  if(!file) return;
+  const fr = new FileReader();
+  fr.onload = () => {
+    const txt = fr.result;
+    if(/var SHOWS\s*=/.test(txt)){ importTvTime(txt); return; }
+    try{
+      const s = JSON.parse(txt);
+      if(!s.shows) throw 0;
+      state = s; save(); closeModal(); render();
+      toast("Backup imported ✓");
+      setTimeout(()=>syncAll(false), 800);
+    }catch(e){ toast("Not a valid backup or TV Time export"); }
+  };
+  fr.readAsText(file);
+}
+function importTvTime(html){
+  const m = html.match(/var SHOWS\s*=\s*(\[[\s\S]*?\]);/);
+  if(!m){ toast("No TV Time show data found in this file"); return; }
+  let list;
+  try{ list = JSON.parse(m[1]); }catch(e){ toast("Couldn't parse the TV Time export"); return; }
+  const dm = html.match(/(\d{4}-\d{2}-\d{2})/);
+  const cutoff = dm ? dm[1] : todayStr();
+  let added = 0;
+  for(const s of list){
+    if(!s.tvdbId) continue;
+    const key = "db"+s.tvdbId;
+    if(state.shows[key]) continue;
+    const sh = seedShowObj({
+      t: s.title || ("TVDB "+s.tvdbId), d: s.tvdbId,
+      s: s.status || "not_started_yet", f: s.isFavorite ? 1 : 0,
+      u: (s.unwatchedRegularEps||[]).map(e=>[e.season, e.episode]),
+      w: s.watched || 0
+    });
+    sh.seedCutoff = cutoff;
+    state.shows[key] = sh;
+    added++;
+  }
+  save(); closeModal(); render();
+  toast(added + " shows imported — syncing…");
+  setTimeout(()=>syncAll(false), 800);
+}
+function resetAll(){
+  if(!confirm("Delete ALL data on this device? Export a backup first!")) return;
+  localStorage.removeItem(LS_KEY);
+  location.reload();
+}
+
+/* ---------- boot ---------- */
+load();
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => { tab = b.dataset.tab; render(); });
+$("#btn-sync").onclick = () => syncAll(false);
+$("#btn-settings").onclick = openSettings;
+render();
+// first run: start syncing automatically; later: refresh if stale (>20h)
+const stale = allShows().length && (Date.now() - (state.lastGlobalSync||0) > 20*3600000);
+if(stale) setTimeout(()=>syncAll(false), 800);
+
+</script>
+</body>
+</html>
