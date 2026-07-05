@@ -182,7 +182,10 @@ h2.sec{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--
 .daylabel small{color:var(--tx3);font-weight:600}
 
 /* ── shows grid ─────────────────────────── */
-.searchbar{display:flex;gap:8px;margin-bottom:12px}
+.searchbar{display:flex;gap:8px;margin-bottom:12px;position:sticky;top:calc(62px + var(--sat));z-index:30;background:var(--bg);padding:8px 0}
+.inputwrap{flex:1;position:relative;display:flex}
+.inputwrap input{width:100%}
+.clearbtn{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:24px;height:24px;border-radius:50%;background:var(--bg4);color:var(--tx2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;line-height:1}
 .searchbar input{
   flex:1;background:var(--bg2);border:1px solid var(--line);border-radius:14px;
   padding:12px 16px;color:var(--tx);outline:none;transition:border .15s;
@@ -368,8 +371,8 @@ const SEED=[];
 <script>
 "use strict";
 /* ============ Episotia — personal TV tracker ============ */
-const APP_VERSION = "2.7.0";
-const WHATS_NEW = "The sync button now also checks for app updates — when a new version is live, a banner offers a one-tap update (no more waiting for the cache).";
+const APP_VERSION = "2.7.1";
+const WHATS_NEW = "One-tap in-app updates, filter chips recenter when selected, search bars stay visible while scrolling and gained a clear button.";
 const API = "https://api.tvmaze.com";
 const LS_KEY = "episotia.v1";
 const LS_OLD = "showtime.v1";
@@ -399,6 +402,7 @@ const I = {
 let state = null;
 let tab = "towatch";
 let searchResults = [];
+let lastSearchQ = "";
 let searchAdded = {};
 let currentSheetKey = null;
 
@@ -894,6 +898,10 @@ function render(){
   else if(tab==="stats") m.innerHTML = viewStats();
   else if(tab==="search") m.innerHTML = viewSearch();
   updateBadge();
+  document.querySelectorAll("#main .chips").forEach(row => {
+    const act = row.querySelector && row.querySelector(".chip.act");
+    if(act && row.scrollTo) row.scrollTo({left: act.offsetLeft - (row.clientWidth - act.offsetWidth)/2, behavior:"smooth"});
+  });
 }
 function updateBadge(){
   const n = allShows().filter(sh=>sh.status==="watching"&&sh.eps&&remaining(sh)>0).length;
@@ -1024,7 +1032,7 @@ function viewShows(){
   items.sort((a,b)=>a.title.localeCompare(b.title));
   const counts = {};
   for(const s of allShows()) counts[s.status] = (counts[s.status]||0)+1;
-  let h = `<div class="searchbar"><input id="show-q" placeholder="Filter my ${allShows().length} shows…" value="${esc(showQuery)}" oninput="showQuery=this.value;renderKeepFocus('show-q')"></div>
+  let h = `<div class="searchbar"><div class="inputwrap"><input id="show-q" placeholder="Filter my ${allShows().length} shows…" value="${esc(showQuery)}" oninput="showQuery=this.value;renderKeepFocus('show-q')">${showQuery?`<button class="clearbtn" onclick="showQuery='';render()">✕</button>`:""}</div></div>
   <div class="chips">
     <button class="chip ${showFilter==="all"?"act":""}" onclick="showFilter='all';render()">All</button>
     <button class="chip gold ${showFilter==="fav"?"act":""}" onclick="showFilter='fav';render()">★ Favorites</button>
@@ -1098,7 +1106,10 @@ function viewStats(){
 }
 function viewSearch(){
   let h = `<div class="searchbar">
-    <input id="q" placeholder="Search any show…" value="" onkeydown="if(event.key==='Enter')doSearch()">
+    <div class="inputwrap">
+      <input id="q" placeholder="Search any show…" value="${esc(lastSearchQ)}" onkeydown="if(event.key==='Enter')doSearch()" oninput="lastSearchQ=this.value;const b=this.nextElementSibling;if(b)b.style.display=this.value?'flex':'none'">
+      <button class="clearbtn" style="display:${lastSearchQ?"flex":"none"}" onclick="lastSearchQ='';searchResults=[];render();const i=document.getElementById('q');if(i)i.focus()">✕</button>
+    </div>
     <button class="icon-btn" onclick="doSearch()">${I.search}</button>
   </div>`;
   if(!searchResults.length) h += `<div class="empty"><div class="big">🔍</div>Search TVmaze and add shows<br>to your library.</div>`;
@@ -1307,11 +1318,12 @@ function toggleEpModal(key, s, n){
 async function doSearch(){
   const q = $("#q").value.trim();
   if(!q) return;
+  lastSearchQ = q;
   toast("Searching…",1200);
   try{
     searchResults = await apiGet("/search/shows?q="+encodeURIComponent(q)) || [];
     render();
-    const el = $("#q"); if(el){ el.value = q; }
+
   }catch(e){ toast("Network error"); }
 }
 async function addShow(tvmazeId){
