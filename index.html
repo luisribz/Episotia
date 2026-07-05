@@ -370,7 +370,7 @@ const SEED=[];
 <script>
 "use strict";
 /* ============ Episotia — personal TV tracker ============ */
-const APP_VERSION = "2.5.0";
+const APP_VERSION = "2.5.1";
 const WHATS_NEW = "A better balance of violet and gold across every tab — episode codes, counts, dates and alternating stat cards now glow gold.";
 const API = "https://api.tvmaze.com";
 const LS_KEY = "episotia.v1";
@@ -477,10 +477,21 @@ function applyTheme(){
   const mc = document.querySelector('meta[name="theme-color"]');
   if(mc) mc.content = mode==="light" ? "#f3f4f9" : "#0a0c11";
 }
-function cycleTheme(){
-  const order = ["system","dark","light"];
-  state.settings.theme = order[(order.indexOf(state.settings.theme)+1)%order.length];
+function openThemePicker(){
+  const cur = state.settings.theme;
+  const opts = [["system","System","Follows your phone"],["dark","Dark","Always dark"],["light","Light","Always light"]];
+  $("#modal").innerHTML = `<div class="mbox" onclick="event.stopPropagation()">
+    <h3>Theme</h3>
+    ${opts.map(([k,label,desc])=>`<button class="mrow" onclick="setTheme('${k}')">${label}<span class="md">${cur===k?"✓ current":desc}</span></button>`).join("")}
+    <button class="abtn" style="width:100%;margin-top:14px" onclick="openSettings()">‹ Back</button>
+  </div>`;
+  $("#modal").classList.remove("hidden");
+  $("#modal").onclick = closeModal;
+}
+function setTheme(k){
+  state.settings.theme = k;
   save(); applyTheme(); openSettings();
+  toast("Theme: "+({system:"System",dark:"Dark",light:"Light"}[k]));
 }
 if(mqLight && mqLight.addEventListener) mqLight.addEventListener("change", () => {
   if(state && state.settings.theme==="system") applyTheme();
@@ -1315,7 +1326,7 @@ function openSettings(){
   const gistOn = state.gist && state.gist.token;
   $("#modal").innerHTML = `<div class="mbox" onclick="event.stopPropagation()">
     <h3>Settings</h3>
-    <button class="mrow" onclick="cycleTheme()">${I.moon}Theme<span class="md">${themeLabel}</span></button>
+    <button class="mrow" onclick="openThemePicker()">${I.moon}Theme<span class="md">${themeLabel} ›</span></button>
     ${gistOn
       ? `<button class="mrow" onclick="disconnectGist()">${I.cloud}Cloud sync: on ✓<span class="md">${state.gist.lastPush?"saved "+agoStr(state.gist.lastPush):"tap to disconnect"}</span></button>`
       : `<button class="mrow" onclick="openSyncSetup()">${I.cloud}Set up cloud sync<span class="md">recommended</span></button>`}
