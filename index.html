@@ -17,10 +17,19 @@
   --bg:#0a0c11; --bg2:#12151e; --bg3:#1a1e2a; --bg4:#222738; --line:#242a3a; --line2:#303752;
   --tx:#f0f2f8; --tx2:#9aa2b8; --tx3:#5d6478;
   --acc:#8b7cf8; --acc-2:#c084fc; --grad:linear-gradient(135deg,#8b7cf8,#c084fc);
-  --green:#34d399; --red:#fb7185; --amber:#fbbf24;
+  --green:#34d399; --red:#fb7185; --gold:#fbbf24;
+  --hdrbg:rgba(10,12,17,.85); --navbg:rgba(13,15,22,.88); --toastbg:#252b3d;
   --rad:16px; --rad-s:10px;
   --sab:env(safe-area-inset-bottom,0px); --sat:env(safe-area-inset-top,0px);
   --shadow:0 4px 16px rgba(0,0,0,.35);
+  color-scheme:dark;
+}
+html[data-theme="light"]{
+  --bg:#f3f4f9; --bg2:#ffffff; --bg3:#e9ebf3; --bg4:#dde1ee; --line:#e3e6f0; --line2:#c6cde0;
+  --tx:#171923; --tx2:#525a70; --tx3:#8f96ab;
+  --hdrbg:rgba(243,244,249,.85); --navbg:rgba(248,249,252,.92); --toastbg:#ffffff;
+  --shadow:0 4px 14px rgba(30,35,60,.08);
+  color-scheme:light;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html{height:100%;overscroll-behavior-y:none}
@@ -30,6 +39,7 @@ body{
   font-size:15px;line-height:1.45;min-height:100%;
   padding-bottom:calc(76px + var(--sab));
   -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+  transition:background .2s;
 }
 button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;user-select:none;-webkit-user-select:none}
 input,select{font:inherit}
@@ -42,21 +52,22 @@ svg{display:block}
 /* ── header ─────────────────────────────── */
 header{
   position:sticky;top:0;z-index:40;
-  background:rgba(10,12,17,.85);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  background:var(--hdrbg);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
   border-bottom:1px solid var(--line);
   padding:calc(12px + var(--sat)) 18px 12px;
   display:flex;align-items:center;gap:12px;
 }
 .logo{display:flex;align-items:center;gap:9px}
 .logo-mark{
-  width:30px;height:30px;border-radius:9px;background:var(--grad);
+  width:30px;height:30px;border-radius:9px;background:#12151e;
   display:flex;align-items:center;justify-content:center;
-  box-shadow:0 2px 10px rgba(139,124,248,.4);
+  border:1px solid #242a3a;
+  box-shadow:0 2px 10px rgba(139,124,248,.25);
 }
-.logo-mark svg{width:16px;height:16px;fill:#fff}
+.logo-mark svg{width:19px;height:19px}
 .logo h1{
   font-size:18px;font-weight:800;letter-spacing:-.2px;
-  background:linear-gradient(135deg,#fff,#c9c2ff);
+  background:linear-gradient(135deg,var(--tx),var(--acc));
   -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
 }
 .hbtns{margin-left:auto;display:flex;gap:8px}
@@ -75,7 +86,7 @@ header{
 /* ── bottom nav ─────────────────────────── */
 nav{
   position:fixed;bottom:0;left:0;right:0;z-index:40;
-  background:rgba(13,15,22,.88);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  background:var(--navbg);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
   border-top:1px solid var(--line);
   display:flex;padding:6px 8px calc(6px + var(--sab));
 }
@@ -121,6 +132,8 @@ h2.sec{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--
 .poster.ph svg{width:22px;height:22px;stroke:var(--tx3);stroke-width:1.6;fill:none}
 .card .info{flex:1;min-width:0}
 .card .title{font-weight:700;font-size:15px;letter-spacing:-.1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.titlefav{display:inline-block;margin-left:6px;vertical-align:-1px}
+.titlefav svg{width:13px;height:13px;fill:var(--gold);stroke:none;display:inline}
 .card .sub{font-size:13px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
 .card .meta{font-size:11.5px;color:var(--tx3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .epcode{color:var(--acc);font-weight:700;font-variant-numeric:tabular-nums}
@@ -154,7 +167,7 @@ h2.sec{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--
   font-size:12px;font-weight:800;color:var(--tx);letter-spacing:.4px;
   margin:20px 2px 10px;display:flex;align-items:baseline;gap:8px;
 }
-.daylabel::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--grad);align-self:center}
+.daylabel::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--gold);align-self:center}
 .daylabel small{color:var(--tx3);font-weight:600}
 
 /* ── shows grid ─────────────────────────── */
@@ -174,7 +187,7 @@ h2.sec{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--
 .gcell .gph svg{width:26px;height:26px;stroke:var(--tx3);stroke-width:1.5;fill:none}
 .gcell .gt{font-size:11px;font-weight:600;padding:7px 7px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .gcell .fav{position:absolute;top:5px;right:5px;width:20px;height:20px;border-radius:6px;background:rgba(10,12,17,.72);display:flex;align-items:center;justify-content:center}
-.gcell .fav svg{width:12px;height:12px;fill:var(--amber);stroke:none}
+.gcell .fav svg{width:12px;height:12px;fill:var(--gold);stroke:none}
 .gcell .gbar{position:absolute;left:0;right:0;height:3px;background:rgba(0,0,0,.55)}
 .gcell .gbar i{display:block;height:100%;background:var(--grad)}
 .gcell .gbar i.full{background:var(--green)}
@@ -199,11 +212,12 @@ h2.sec{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--
 @keyframes slideup{from{transform:translateY(28px);opacity:0}to{transform:none;opacity:1}}
 .hero{position:relative;height:200px;overflow:hidden}
 .hero .hbg{position:absolute;inset:-24px;background-size:cover;background-position:center 22%;filter:blur(22px) saturate(1.15) brightness(.75);transform:scale(1.15)}
-.hero .hgrad{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(10,12,17,.25),rgba(10,12,17,.55) 55%,var(--bg))}
+.hero .hgrad{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.22),rgba(0,0,0,.45) 55%,var(--bg))}
 .hero .hback{position:absolute;top:calc(12px + var(--sat));left:14px;z-index:3;background:rgba(10,12,17,.55);border-color:rgba(255,255,255,.12)}
+.hero .hback svg{stroke:#e8eaf0}
 .hero .hfav{position:absolute;top:calc(12px + var(--sat));right:14px;z-index:3;background:rgba(10,12,17,.55);border-color:rgba(255,255,255,.12)}
-.hero .hfav svg{fill:none}
-.hero .hfav.on svg{fill:var(--amber);stroke:var(--amber)}
+.hero .hfav svg{fill:none;stroke:#e8eaf0}
+.hero .hfav.on svg{fill:var(--gold);stroke:var(--gold)}
 .dwrap{max-width:640px;margin:0 auto;padding:0 16px}
 .dtop{display:flex;gap:15px;margin-top:-64px;position:relative;z-index:2}
 .dtop img,.dtop .dph{width:108px;height:158px;border-radius:14px;object-fit:cover;background:var(--bg3);flex-shrink:0;box-shadow:0 10px 30px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.08)}
@@ -241,21 +255,31 @@ h2.sec{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--
 .eprow.watched .tick svg{stroke:#0a0c11}
 .eprow.future{opacity:.42}
 
+/* ── episode detail ─────────────────────── */
+.epmeta{font-size:12px;color:var(--tx3);margin-bottom:8px}
+.epimg{width:100%;border-radius:12px;margin:4px 0 12px;aspect-ratio:16/9;object-fit:cover;background:var(--bg3)}
+.eprating{display:flex;align-items:center;gap:6px;color:var(--gold);font-weight:800;font-size:15px;margin-bottom:4px}
+.eprating svg{width:16px;height:16px;fill:var(--gold);stroke:none}
+.epsum{font-size:13.5px;color:var(--tx2);line-height:1.65;margin:8px 0 6px}
+
 /* ── modal / toast ──────────────────────── */
 #modal{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.62);display:flex;align-items:flex-end;justify-content:center;animation:fadein .15s}
 .mbox{
   background:var(--bg2);border:1px solid var(--line);border-radius:22px 22px 0 0;
   width:100%;max-width:640px;padding:22px 20px calc(26px + var(--sab));
   animation:slideup .22s cubic-bezier(.2,.8,.25,1);
+  max-height:82vh;overflow-y:auto;
 }
 .mbox h3{margin-bottom:14px;font-size:17px;font-weight:800}
 .mrow{display:flex;align-items:center;gap:12px;padding:14px 4px;border-bottom:1px solid var(--line);font-size:14.5px;width:100%;text-align:left;font-weight:600}
 .mrow:last-of-type{border-bottom:none}
 .mrow svg{width:19px;height:19px;stroke:var(--tx2);stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
-.mrow .md{margin-left:auto;font-size:12px;color:var(--tx3)}
+.mrow .md{margin-left:auto;font-size:12px;color:var(--tx3);text-align:right}
+.minput{width:100%;background:var(--bg3);border:1px solid var(--line);border-radius:12px;padding:12px 14px;color:var(--tx);outline:none;margin:6px 0 12px}
+.minput:focus{border-color:var(--acc)}
 .toast{
   position:fixed;bottom:calc(88px + var(--sab));left:50%;transform:translateX(-50%);
-  background:#252b3d;border:1px solid var(--line2);color:var(--tx);
+  background:var(--toastbg);border:1px solid var(--line2);color:var(--tx);
   padding:11px 18px;border-radius:26px;font-size:13.5px;font-weight:600;z-index:80;
   box-shadow:0 8px 28px rgba(0,0,0,.5);white-space:nowrap;
   display:flex;align-items:center;gap:14px;animation:toastin .2s cubic-bezier(.2,.8,.25,1);
@@ -266,12 +290,20 @@ h2.sec{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--
 .toast button{color:var(--acc-2);font-weight:800;font-size:13px;letter-spacing:.4px;text-transform:uppercase;flex-shrink:0}
 .note{background:var(--bg2);border:1px solid var(--line);border-radius:var(--rad);padding:13px 15px;font-size:13px;color:var(--tx2);margin-bottom:13px;line-height:1.6}
 .note b{color:var(--acc-2)}
+html[data-theme="light"] .note b{color:var(--acc)}
 </style>
 </head>
 <body>
 <header>
   <div class="logo">
-    <div class="logo-mark"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z"/></svg></div>
+    <div class="logo-mark">
+      <svg viewBox="0 0 24 24">
+        <rect x="4" y="3" width="3.4" height="18" rx="1.7" fill="#8b7cf8"/>
+        <rect x="4" y="3" width="12.6" height="3.4" rx="1.7" fill="#8b7cf8"/>
+        <rect x="4" y="17.6" width="12.6" height="3.4" rx="1.7" fill="#8b7cf8"/>
+        <polygon points="10.2,8.7 10.2,15.3 16.4,12" fill="#fbbf24"/>
+      </svg>
+    </div>
     <h1>Episotia</h1>
   </div>
   <div id="sync-pill"><div class="spin"></div><span id="sync-txt"></span></div>
@@ -321,6 +353,7 @@ const SEED=[];
 <script>
 "use strict";
 /* ============ Episotia — personal TV tracker ============ */
+const APP_VERSION = "2.0.0";
 const API = "https://api.tvmaze.com";
 const LS_KEY = "episotia.v1";
 const LS_OLD = "showtime.v1";
@@ -342,6 +375,9 @@ const I = {
   refresh:'<svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg>',
   trash:'<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>',
   search:'<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>',
+  cloud:'<svg viewBox="0 0 24 24"><path d="M17.5 19a4.5 4.5 0 0 0 .42-8.98 7 7 0 0 0-13.36 1.9A4 4 0 0 0 6 19z"/></svg>',
+  moon:'<svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>',
+  chat:'<svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.3 8.9 8.9 0 0 1-3.8-.8L3 20l1.1-5A8 8 0 0 1 3.5 11.5 8.4 8.4 0 0 1 12 3.2a8.4 8.4 0 0 1 9 8.3z"/></svg>',
 };
 let state = null;
 let tab = "towatch";
@@ -352,6 +388,7 @@ let currentSheetKey = null;
 /* ---------- utils ---------- */
 const $ = s => document.querySelector(s);
 const esc = s => String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const stripHtml = s => String(s||"").replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim();
 function todayStr(){
   const d = new Date();
   return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
@@ -381,6 +418,9 @@ function agoStr(ts){
   return fmtDate(dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,"0")+"-"+String(dt.getDate()).padStart(2,"0"));
 }
 function epCode(s,n){ return "S"+String(s).padStart(2,"0")+"E"+String(n).padStart(2,"0"); }
+function redditUrl(sh, s, n){
+  return "https://www.reddit.com/search/?q="+encodeURIComponent(`"${sh.title}" ${epCode(s,n)} episode discussion`);
+}
 function toast(msg, ms=2400, action=null){
   document.querySelectorAll(".toast").forEach(t=>t.remove());
   const t = document.createElement("div");
@@ -398,8 +438,42 @@ function toast(msg, ms=2400, action=null){
   setTimeout(()=>t.remove(), ms);
 }
 function save(){
+  state.updatedAt = Date.now();
   try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
   catch(e){ toast("⚠️ Storage full — export a backup!"); }
+  scheduleGistPush();
+}
+
+/* ---------- theme ---------- */
+const mqLight = (typeof window!=="undefined" && window.matchMedia) ? window.matchMedia("(prefers-color-scheme: light)") : null;
+function resolveTheme(){
+  const pref = (state && state.settings && state.settings.theme) || "system";
+  if(pref==="system") return (mqLight && mqLight.matches) ? "light" : "dark";
+  return pref;
+}
+function applyTheme(){
+  const mode = resolveTheme();
+  document.documentElement.setAttribute("data-theme", mode);
+  const mc = document.querySelector('meta[name="theme-color"]');
+  if(mc) mc.content = mode==="light" ? "#f3f4f9" : "#0a0c11";
+}
+function cycleTheme(){
+  const order = ["system","dark","light"];
+  state.settings.theme = order[(order.indexOf(state.settings.theme)+1)%order.length];
+  save(); applyTheme(); openSettings();
+}
+if(mqLight && mqLight.addEventListener) mqLight.addEventListener("change", () => {
+  if(state && state.settings.theme==="system") applyTheme();
+});
+
+/* ---------- version ---------- */
+function versionCheck(){
+  if(state.appVersion !== APP_VERSION){
+    const firstRun = !state.appVersion && !Object.keys(state.shows).length;
+    state.appVersion = APP_VERSION;
+    save();
+    if(!firstRun) toast("Updated to v"+APP_VERSION+" ✨", 3500);
+  }
 }
 
 /* ---------- state / seed ---------- */
@@ -426,6 +500,8 @@ function load(){
       if(SEED.length) save();
     }
   }
+  state.settings = state.settings || {theme:"system"};
+  state.updatedAt = state.updatedAt || Date.now();
 }
 
 /* ---------- derived ---------- */
@@ -475,7 +551,7 @@ function deriveFromSeed(sh){
   delete sh.seedUnwatched;
 }
 
-/* ---------- sync engine ---------- */
+/* ---------- sync engine (TVmaze) ---------- */
 let syncing = false;
 async function apiGet(path){
   for(let att=0; att<4; att++){
@@ -560,7 +636,118 @@ async function syncAll(full=false){
   toast(fails ? `Sync done — ${fails} show(s) need manual matching` : "Sync complete ✓");
 }
 
-/* ---------- unmatched shows fixer ---------- */
+/* ---------- cloud sync (GitHub Gist, optional) ---------- */
+const GIST_FILE = "episotia-sync.json";
+let gistPushTimer = null, applyingRemote = false;
+function syncedState(){
+  const c = JSON.parse(JSON.stringify(state));
+  delete c.gist;                       // never let the token leave the device via backups/gist
+  return c;
+}
+async function gistApi(method, path, body){
+  const r = await fetch("https://api.github.com"+path, {
+    method,
+    headers: { "Authorization":"Bearer "+state.gist.token, "Accept":"application/vnd.github+json" },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  if(r.status===401 || r.status===403) throw new Error("auth");
+  if(!r.ok) throw new Error("http"+r.status);
+  return r.status===204 ? null : r.json();
+}
+function scheduleGistPush(){
+  if(!state || !state.gist || !state.gist.token || applyingRemote) return;
+  clearTimeout(gistPushTimer);
+  gistPushTimer = setTimeout(gistPush, 3000);
+}
+async function gistPush(){
+  if(!state.gist || !state.gist.token || !state.gist.id) return;
+  try{
+    await gistApi("PATCH", "/gists/"+state.gist.id, { files: { [GIST_FILE]: { content: JSON.stringify(syncedState()) } } });
+    state.gist.lastPush = Date.now();
+    localStorage.setItem(LS_KEY, JSON.stringify(state)); // persist lastPush without re-scheduling
+  }catch(e){
+    if(e.message==="auth") toast("Cloud sync: token invalid — reconnect in Settings", 4000);
+  }
+}
+async function gistPull(){
+  if(!state.gist || !state.gist.token || !state.gist.id) return;
+  try{
+    const g = await gistApi("GET", "/gists/"+state.gist.id);
+    const f = g.files && g.files[GIST_FILE];
+    if(!f || !f.content) return;
+    const remote = JSON.parse(f.content);
+    if((remote.updatedAt||0) > (state.updatedAt||0)){
+      applyingRemote = true;
+      const gist = state.gist;
+      state = remote;
+      state.gist = gist;
+      state.settings = state.settings || {theme:"system"};
+      localStorage.setItem(LS_KEY, JSON.stringify(state));
+      applyingRemote = false;
+      applyTheme(); render();
+      toast("Synced from cloud ☁", 2000);
+    } else if((state.updatedAt||0) > (remote.updatedAt||0)){
+      scheduleGistPush();
+    }
+  }catch(e){
+    if(e.message==="auth") toast("Cloud sync: token invalid — reconnect in Settings", 4000);
+  }
+}
+function openSyncSetup(){
+  $("#modal").innerHTML = `<div class="mbox" onclick="event.stopPropagation()">
+    <h3>Cloud sync (via GitHub)</h3>
+    <div class="note">Auto-saves your library to a <b>private gist</b> in your own GitHub account, and keeps all your devices in sync. One-time setup:<br><br>
+    1. Create a free account at <b>github.com</b> (if you don't have one).<br>
+    2. Open <b>github.com/settings/personal-access-tokens</b> → Generate new token.<br>
+    3. Any name, expiration <b>No expiration</b>, and under <b>Account permissions → Gists</b> choose <b>Read and write</b>. Generate & copy.<br>
+    4. Paste the token below. Repeat only step 4 on your other devices.</div>
+    <input id="gtoken" class="minput" placeholder="Paste token (github_pat_… or ghp_…)" autocomplete="off">
+    <button class="abtn primary" style="width:100%" onclick="connectGist()">Connect</button>
+  </div>`;
+  $("#modal").classList.remove("hidden");
+  $("#modal").onclick = closeModal;
+}
+async function connectGist(){
+  const token = $("#gtoken").value.trim();
+  if(!token) return;
+  state.gist = {token, id:null};
+  toast("Connecting…", 8000);
+  try{
+    const list = await gistApi("GET","/gists?per_page=100");
+    const mine = (list||[]).find(g => g.files && g.files[GIST_FILE]);
+    if(mine){
+      state.gist.id = mine.id;
+      const g = await gistApi("GET","/gists/"+mine.id);
+      let remote = null;
+      try{ remote = JSON.parse(g.files[GIST_FILE].content||"{}"); }catch(e){}
+      if(remote && remote.shows){
+        const rn = Object.keys(remote.shows).length, ln = Object.keys(state.shows).length;
+        if(confirm(`Found cloud data (${rn} shows). Load it on this device?\n\nOK = use cloud data here\nCancel = overwrite cloud with this device (${ln} shows)`)){
+          applyingRemote = true;
+          const gist = state.gist;
+          state = remote; state.gist = gist;
+          state.settings = state.settings || {theme:"system"};
+          applyingRemote = false;
+        }
+      }
+    } else {
+      const g = await gistApi("POST","/gists",{ description:"Episotia sync data", public:false, files:{ [GIST_FILE]:{ content: JSON.stringify(syncedState()) } } });
+      state.gist.id = g.id;
+    }
+    save();
+    closeModal(); applyTheme(); render();
+    toast("Cloud sync connected ✓", 3000);
+  }catch(e){
+    state.gist = null; save();
+    toast(e.message==="auth" ? "Token rejected — check it has Gists: read & write" : "Connection failed — try again", 4000);
+  }
+}
+function disconnectGist(){
+  if(!confirm("Disconnect cloud sync on this device?\n(Your data stays here, and the gist stays in your GitHub account.)")) return;
+  state.gist = null; save(); openSettings();
+}
+
+/* ---------- TVmaze unmatched fixer ---------- */
 function unmatchedList(){ return allShows().filter(sh => !sh.eps && sh.lookupFailed); }
 let matchResults = [], matchKey = null;
 function openUnmatched(){
@@ -674,6 +861,7 @@ function posterImg(sh){
   return sh.image ? `<img class="poster" src="${esc(sh.image)}" loading="lazy" alt="">`
                   : `<div class="poster ph">${I.tv}</div>`;
 }
+function favBadge(sh){ return sh.fav ? `<span class="titlefav">${I.star}</span>` : ""; }
 let twFilter = "watching";
 function viewToWatch(){
   let h = `<div class="chips">
@@ -692,6 +880,7 @@ function viewToWatch(){
   let items = allShows().filter(sh => isFollowed(sh) && sh.eps && remaining(sh)>0);
   if(twFilter!=="all") items = items.filter(sh => sh.status===twFilter);
   items.sort((a,b) => {
+    if(!!a.fav !== !!b.fav) return a.fav ? -1 : 1;             // favorites first
     const da = nextUnwatched(a).a||"", db = nextUnwatched(b).a||"";
     return da<db ? 1 : da>db ? -1 : a.title.localeCompare(b.title);
   });
@@ -704,7 +893,7 @@ function viewToWatch(){
     h += `<div class="card">
       ${posterImg(sh)}
       <div class="info" onclick="openShow('${sh.key}')">
-        <div class="title">${esc(sh.title)}</div>
+        <div class="title">${esc(sh.title)}${favBadge(sh)}</div>
         <div class="sub"><span class="epcode">${epCode(e.s,e.n)}</span> · ${esc(e.t)}</div>
         <div class="meta">aired ${fmtDate(e.a)}${sh.network?" · "+esc(sh.network):""}</div>
         <div class="progress"><i style="width:${tot?Math.round(wc/tot*100):0}%"></i></div>
@@ -768,7 +957,7 @@ function viewUpcoming(){
     h += `<div class="card">
       ${posterImg(sh)}
       <div class="info" onclick="openShow('${sh.key}')">
-        <div class="title">${esc(sh.title)}</div>
+        <div class="title">${esc(sh.title)}${favBadge(sh)}</div>
         <div class="sub"><span class="epcode">${epCode(e.s,e.n)}</span> · ${esc(e.t||"TBA")}</div>
         <div class="meta">${sh.network?esc(sh.network):""}</div>
       </div>
@@ -875,7 +1064,7 @@ function renderKeepFocus(id){
   if(el2){ el2.focus(); el2.setSelectionRange(pos,pos); }
 }
 
-/* ---------- detail sheet ---------- */
+/* ---------- show detail sheet ---------- */
 let openSeasons = {};
 function openShow(key){
   const sh = state.shows[key];
@@ -911,9 +1100,10 @@ function renderSheet(key){
         ${open ? eps.map(e=>{
           const future = !e.a || e.a > t;
           const on = !!sh.watched[wkey(e)];
-          return `<div class="eprow ${on?"watched":""} ${future?"future":""}" onclick="${future?"":`toggleEp('${key}',${e.s},${e.n})`}">
+          return `<div class="eprow ${on?"watched":""} ${future?"future":""}" onclick="openEpisode('${key}',${e.s},${e.n})">
             <span class="en">${e.n}</span><span class="et">${esc(e.t||"Episode "+e.n)}</span>
-            <span class="ed">${e.a?fmtDate(e.a):"TBA"}</span><span class="tick">${I.check}</span>
+            <span class="ed">${e.a?fmtDate(e.a):"TBA"}</span>
+            <span class="tick" onclick="event.stopPropagation();${future?"":`toggleEp('${key}',${e.s},${e.n})`}">${I.check}</span>
           </div>`;
         }).join("") : ""}
       </div>`;
@@ -942,7 +1132,7 @@ function renderSheet(key){
     <div class="dtop">
       ${sh.image?`<img src="${esc(sh.image)}" alt="">`:`<div class="dph">${I.tv}</div>`}
       <div class="dhead">
-        <div class="dtitle">${esc(sh.title)}</div>
+        <div class="dtitle">${esc(sh.title)}${favBadge(sh)}</div>
         <div class="dmeta">${metaBits}${(sh.genres&&sh.genres.length)?"<br>"+sh.genres.slice(0,3).map(esc).join(" · "):""}</div>
       </div>
     </div>
@@ -997,6 +1187,57 @@ function quickWatch(key){
   render();
 }
 
+/* ---------- episode detail ---------- */
+let epCache = null;
+async function openEpisode(key, s, n){
+  const sh = state.shows[key];
+  if(!sh) return;
+  epCache = null;
+  const local = sh.eps ? sh.eps.find(e=>e.s===s&&e.n===n) : null;
+  $("#modal").innerHTML = `<div class="mbox" onclick="event.stopPropagation()">
+    <h3>${esc((local&&local.t)||epCode(s,n))}</h3>
+    <div class="note">Loading episode details…</div>
+  </div>`;
+  $("#modal").classList.remove("hidden");
+  $("#modal").onclick = closeModal;
+  if(sh.tvmazeId){
+    try{ epCache = await apiGet(`/shows/${sh.tvmazeId}/episodebynumber?season=${s}&number=${n}`); }
+    catch(e){}
+  }
+  renderEpisode(key, s, n);
+}
+function renderEpisode(key, s, n){
+  const sh = state.shows[key];
+  const d = epCache;
+  const local = sh.eps ? sh.eps.find(e=>e.s===s&&e.n===n) : null;
+  const on = !!sh.watched[s+"-"+n];
+  const title = (d&&d.name) || (local&&local.t) || "Episode "+n;
+  const air = (d&&d.airdate) || (local&&local.a) || null;
+  const run = (d&&d.runtime) || (local&&local.r) || null;
+  const rating = d && d.rating && d.rating.average;
+  const img = d && d.image && (d.image.original || d.image.medium);
+  const sum = stripHtml(d && d.summary);
+  const future = !air || air > todayStr();
+  $("#modal").innerHTML = `<div class="mbox" onclick="event.stopPropagation()">
+    <h3>${esc(title)}</h3>
+    <div class="epmeta"><span class="epcode">${epCode(s,n)}</span> · ${esc(sh.title)}${air?" · "+fmtDate(air):" · TBA"}${run?" · "+run+" min":""}</div>
+    ${img?`<img class="epimg" src="${esc(img)}" alt="">`:""}
+    ${rating?`<div class="eprating">${I.star}${Number(rating).toFixed(1)}<span style="color:var(--tx3);font-weight:600;font-size:12px">/10 · TVmaze community</span></div>`:""}
+    ${sum?`<div class="epsum">${esc(sum)}</div>`:`<div class="epsum" style="color:var(--tx3)">${future?"Not aired yet.":"No description available."}</div>`}
+    <div class="actions" style="margin:10px 0 0">
+      ${future?"":`<button class="abtn ${on?"":"primary"}" onclick="toggleEpModal('${key}',${s},${n})">${on?"Unmark watched":"✓ Mark watched"}</button>`}
+      <button class="abtn" onclick="window.open(redditUrl(state.shows['${key}'],${s},${n}),'_blank')">${I.chat.replace('<svg','<svg style="width:15px;height:15px;display:inline;vertical-align:-2px;stroke:currentColor;fill:none;stroke-width:1.8"')} Reddit</button>
+    </div>
+  </div>`;
+}
+function toggleEpModal(key, s, n){
+  const sh = state.shows[key];
+  const e = (sh.eps||[]).find(x=>x.s===s&&x.n===n) || {s, n};
+  markWatched(sh, e, !sh.watched[s+"-"+n]);
+  if(currentSheetKey && !$("#sheet").classList.contains("hidden")) renderSheet(currentSheetKey);
+  renderEpisode(key, s, n);
+}
+
 /* ---------- search / add ---------- */
 async function doSearch(){
   const q = $("#q").value.trim();
@@ -1029,14 +1270,20 @@ async function addShow(tvmazeId){
 /* ---------- settings / backup / import ---------- */
 function openSettings(){
   const kb = Math.round((localStorage.getItem(LS_KEY)||"").length/1024);
+  const themeLabel = {system:"System", dark:"Dark", light:"Light"}[state.settings.theme] || "System";
+  const gistOn = state.gist && state.gist.token;
   $("#modal").innerHTML = `<div class="mbox" onclick="event.stopPropagation()">
     <h3>Settings</h3>
+    <button class="mrow" onclick="cycleTheme()">${I.moon}Theme<span class="md">${themeLabel}</span></button>
+    ${gistOn
+      ? `<button class="mrow" onclick="disconnectGist()">${I.cloud}Cloud sync: on ✓<span class="md">${state.gist.lastPush?"saved "+agoStr(state.gist.lastPush):"tap to disconnect"}</span></button>`
+      : `<button class="mrow" onclick="openSyncSetup()">${I.cloud}Set up cloud sync<span class="md">recommended</span></button>`}
     <button class="mrow" onclick="exportBackup()">${I.down}Export backup (JSON)<span class="md">${kb} KB</span></button>
     <button class="mrow" onclick="document.getElementById('imp').click()">${I.up}Import backup / TV Time export<span class="md">.json / .html</span></button>
     ${unmatchedList().length?`<button class="mrow" onclick="openUnmatched()">${I.search}Fix unmatched shows<span class="md">${unmatchedList().length}</span></button>`:""}
     <button class="mrow" onclick="closeModal();syncAll(true)">${I.refresh}Full re-sync (all shows)</button>
     <button class="mrow" style="color:var(--red)" onclick="resetAll()">${I.trash}Reset all data</button>
-    <div class="note" style="margin-top:14px">Your data lives only in this browser, on this device. Export a backup regularly — and use import to move it to another phone. Import also accepts a <b>TV Time export</b> (.html from the "TV Time Out" Chrome extension) to fill a fresh library.</div>
+    <div class="note" style="margin-top:14px">${gistOn?"Cloud sync is on: your library auto-saves to your private gist and follows you across devices.":"Your data lives only in this browser, on this device. Set up cloud sync (or export backups) so you never lose progress."} Import also accepts a <b>TV Time export</b> (.html from the "TV Time Out" Chrome extension).<div style="margin-top:8px;color:var(--tx3);font-size:11.5px">Episotia v${APP_VERSION}</div></div>
     <input type="file" id="imp" accept=".json,.html,.htm,application/json,text/html" class="hidden" onchange="importFile(this.files[0])">
   </div>`;
   $("#modal").classList.remove("hidden");
@@ -1044,7 +1291,7 @@ function openSettings(){
 }
 function closeModal(){ $("#modal").classList.add("hidden"); }
 function exportBackup(){
-  const blob = new Blob([JSON.stringify(state)], {type:"application/json"});
+  const blob = new Blob([JSON.stringify(syncedState())], {type:"application/json"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = "episotia-backup-"+todayStr()+".json";
@@ -1060,7 +1307,11 @@ function importFile(file){
     try{
       const s = JSON.parse(txt);
       if(!s.shows) throw 0;
-      state = s; save(); closeModal(); render();
+      const gist = state.gist;              // keep this device's sync connection
+      state = s;
+      if(gist) state.gist = gist;
+      state.settings = state.settings || {theme:"system"};
+      save(); closeModal(); applyTheme(); render();
       toast("Backup imported ✓");
       setTimeout(()=>syncAll(false), 800);
     }catch(e){ toast("Not a valid backup or TV Time export"); }
@@ -1101,10 +1352,13 @@ function resetAll(){
 
 /* ---------- boot ---------- */
 load();
+applyTheme();
+versionCheck();
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => { tab = b.dataset.tab; render(); });
 $("#btn-sync").onclick = () => syncAll(false);
 $("#btn-settings").onclick = openSettings;
 render();
+if(state.gist && state.gist.token) gistPull();
 // first run: start syncing automatically; later: refresh if stale (>20h)
 const stale = allShows().length && (Date.now() - (state.lastGlobalSync||0) > 20*3600000);
 if(stale) setTimeout(()=>syncAll(false), 800);
