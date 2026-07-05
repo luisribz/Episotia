@@ -126,7 +126,10 @@ h2.sec{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--
   background:var(--bg2);border:1px solid var(--line);border-radius:var(--rad);
   display:flex;gap:13px;padding:11px;margin-bottom:11px;align-items:center;
   box-shadow:var(--shadow);
+  transition:transform .18s ease;
 }
+.card.swipeable{touch-action:pan-y;will-change:transform}
+.card.dragging{transition:none}
 .poster{width:56px;height:80px;border-radius:var(--rad-s);object-fit:cover;background:var(--bg3);flex-shrink:0}
 .poster.ph{display:flex;align-items:center;justify-content:center;color:var(--tx3)}
 .poster.ph svg{width:22px;height:22px;stroke:var(--tx3);stroke-width:1.6;fill:none}
@@ -298,10 +301,13 @@ html[data-theme="light"] .note b{color:var(--acc)}
   <div class="logo">
     <div class="logo-mark">
       <svg viewBox="0 0 24 24">
-        <rect x="4" y="3" width="3.4" height="18" rx="1.7" fill="#8b7cf8"/>
-        <rect x="4" y="3" width="12.6" height="3.4" rx="1.7" fill="#8b7cf8"/>
-        <rect x="4" y="17.6" width="12.6" height="3.4" rx="1.7" fill="#8b7cf8"/>
-        <polygon points="10.2,8.7 10.2,15.3 16.4,12" fill="#fbbf24"/>
+        <rect x="4.6" y="2.4" width="3" height="15" rx="1.5" fill="#8b7cf8"/>
+        <rect x="4.6" y="2.4" width="11.4" height="3" rx="1.5" fill="#8b7cf8"/>
+        <rect x="4.6" y="14.4" width="11.4" height="3" rx="1.5" fill="#8b7cf8"/>
+        <polygon points="10.1,7.3 10.1,12.5 15.1,9.9" fill="#fbbf24"/>
+        <circle cx="8.2" cy="21" r="1.3" fill="#8b7cf8"/>
+        <circle cx="12.2" cy="21" r="1.3" fill="#8b7cf8"/>
+        <circle cx="16.2" cy="21" r="1.25" fill="none" stroke="#8b7cf8" stroke-width="1.1"/>
       </svg>
     </div>
     <h1>Episotia</h1>
@@ -353,7 +359,7 @@ const SEED=[];
 <script>
 "use strict";
 /* ============ Episotia — personal TV tracker ============ */
-const APP_VERSION = "2.0.0";
+const APP_VERSION = "2.2.0";
 const API = "https://api.tvmaze.com";
 const LS_KEY = "episotia.v1";
 const LS_OLD = "showtime.v1";
@@ -419,7 +425,8 @@ function agoStr(ts){
 }
 function epCode(s,n){ return "S"+String(s).padStart(2,"0")+"E"+String(n).padStart(2,"0"); }
 function redditUrl(sh, s, n){
-  return "https://www.reddit.com/search/?q="+encodeURIComponent(`"${sh.title}" ${epCode(s,n)} episode discussion`);
+  const alt = s+"x"+String(n).padStart(2,"0");
+  return "https://www.google.com/search?q="+encodeURIComponent(`site:reddit.com ${sh.title} "${epCode(s,n)}" OR "${alt}" discussion`);
 }
 function toast(msg, ms=2400, action=null){
   document.querySelectorAll(".toast").forEach(t=>t.remove());
@@ -890,7 +897,7 @@ function viewToWatch(){
   for(const sh of items){
     const e = nextUnwatched(sh), rem = remaining(sh);
     const wc = Object.keys(sh.watched).length, tot = totalRegular(sh);
-    h += `<div class="card">
+    h += `<div class="card swipeable" data-key="${sh.key}">
       ${posterImg(sh)}
       <div class="info" onclick="openShow('${sh.key}')">
         <div class="title">${esc(sh.title)}${favBadge(sh)}</div>
@@ -1348,6 +1355,46 @@ function resetAll(){
   if(!confirm("Delete ALL data on this device? Export a backup first!")) return;
   localStorage.removeItem(LS_KEY);
   location.reload();
+}
+
+/* ---------- swipe gestures (To Watch) ---------- */
+let sw = null;
+if(typeof document!=="undefined" && document.addEventListener){
+  document.addEventListener("touchstart", e => {
+    const card = e.target.closest && e.target.closest(".card.swipeable");
+    if(!card) return;
+    sw = {card, key:card.dataset.key, x:e.touches[0].clientX, y:e.touches[0].clientY, dx:0, on:false};
+  }, {passive:true});
+  document.addEventListener("touchmove", e => {
+    if(!sw) return;
+    const dx = e.touches[0].clientX - sw.x, dy = e.touches[0].clientY - sw.y;
+    if(!sw.on){
+      if(Math.abs(dx)>14 && Math.abs(dx)>Math.abs(dy)*1.4){ sw.on = true; sw.card.classList.add("dragging"); }
+      else if(Math.abs(dy)>14){ sw = null; return; }
+    }
+    if(sw && sw.on){
+      e.preventDefault();
+      sw.dx = Math.max(-130, Math.min(130, dx));
+      sw.card.style.transform = "translateX("+sw.dx+"px)";
+    }
+  }, {passive:false});
+  document.addEventListener("touchend", () => {
+    if(!sw) return;
+    const {card, key, dx, on} = sw;
+    card.classList.remove("dragging");
+    card.style.transform = "";
+    sw = null;
+    if(!on) return;
+    if(dx < -70) quickWatch(key);                     // swipe left = mark watched
+    else if(dx > 70){                                  // swipe right = watch later
+      const s = state.shows[key];
+      if(s && s.status !== "watch_later"){
+        const prev = s.status;
+        s.status = "watch_later"; save(); render();
+        toast(`${s.title} → Watch later`, 5000, {label:"Undo", fn:()=>{ s.status = prev; save(); render(); }});
+      }
+    }
+  }, {passive:true});
 }
 
 /* ---------- boot ---------- */
