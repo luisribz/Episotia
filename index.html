@@ -368,8 +368,8 @@ const SEED=[];
 <script>
 "use strict";
 /* ============ Episotia — personal TV tracker ============ */
-const APP_VERSION = "2.6.0";
-const WHATS_NEW = "New color logic: gold names things (labels, headers, dates), purple shows things (numbers, bars, buttons) — applied across Stats, Upcoming and show pages.";
+const APP_VERSION = "2.7.0";
+const WHATS_NEW = "The sync button now also checks for app updates — when a new version is live, a banner offers a one-tap update (no more waiting for the cache).";
 const API = "https://api.tvmaze.com";
 const LS_KEY = "episotia.v1";
 const LS_OLD = "showtime.v1";
@@ -494,6 +494,19 @@ function setTheme(k){
 if(mqLight && mqLight.addEventListener) mqLight.addEventListener("change", () => {
   if(state && state.settings.theme==="system") applyTheme();
 });
+
+/* ---------- app self-update check ---------- */
+let updateAvailable = null;
+async function checkAppUpdate(){
+  if(typeof location==="undefined" || !/^https?:$/.test(location.protocol)) return;
+  try{
+    const r = await fetch(location.href.split("?")[0], {cache:"no-store"});
+    const t = await r.text();
+    const m = t.match(/APP_VERSION = "([\d.]+)"/);
+    if(m && m[1] !== APP_VERSION && !updateAvailable){ updateAvailable = m[1]; render(); }
+  }catch(e){}
+}
+function reloadApp(){ location.replace(location.pathname + "?u=" + Date.now()); }
 
 /* ---------- version ---------- */
 function versionCheck(){
@@ -634,6 +647,7 @@ function setSyncPill(txt){
   p.classList.add("on"); $("#sync-txt").textContent = txt;
 }
 async function syncAll(full=false){
+  checkAppUpdate();
   if(syncing) return;
   syncing = true;
   const day = 86400000;
@@ -901,6 +915,7 @@ function viewToWatch(){
     <button class="chip ${twFilter==="all"?"act":""}" onclick="twFilter='all';render()">All</button>
     <button class="chip gold ${twFilter==="history"?"act":""}" onclick="twFilter='history';render()">History</button>
   </div>`;
+  if(updateAvailable) h = `<div class="note" style="display:flex;gap:10px;align-items:center;border-left:3px solid var(--green)"><span style="flex:1">⬆ <b>Version ${esc(updateAvailable)}</b> is ready.</span><button class="abtn primary" style="flex:0 0 auto;padding:8px 16px" onclick="reloadApp()">Update now</button></div>` + h;
   if(state.showWhatsNew===APP_VERSION) h = `<div class="note" style="display:flex;gap:10px;align-items:center;border-left:3px solid var(--gold)"><span style="flex:1">✨ <b>Updated to v${APP_VERSION}</b> — ${esc(WHATS_NEW)}</span><button class="unmark" onclick="dismissWhatsNew()" aria-label="Dismiss">${I.x}</button></div>` + h;
   if(twFilter==="history") return h + viewHistory();
   if(!allShows().length){
@@ -1458,6 +1473,7 @@ if(state.gist && state.gist.token) gistPull();
 // first run: start syncing automatically; later: refresh if stale (>20h)
 const stale = allShows().length && (Date.now() - (state.lastGlobalSync||0) > 20*3600000);
 if(stale) setTimeout(()=>syncAll(false), 800);
+setTimeout(checkAppUpdate, 1500);
 
 </script>
 </body>
