@@ -376,9 +376,9 @@ const SEED=[];
 <script>
 "use strict";
 /* ============ Episotia — personal TV tracker ============ */
-/* v2.11.3 */
-const APP_VERSION = "2.11.3";
-const WHATS_NEW = "Shows untouched for 30+ days wait in a \u2018Haven\u2019t watched for a while\u2019 group at the bottom of Watching, and closing a show now returns you to your place in the list.";
+/* v2.12.0 */
+const APP_VERSION = "2.12.0";
+const WHATS_NEW = "Friends! Turn on sharing in Settings \u2192 Friends & sharing, add friends by GitHub username, and see what they watch under the new Friends filter. Also fixes cloud-sync connect on devices with a big cloud library.";
 const API = "https://api.tvmaze.com";
 const LS_KEY = "episotia.v1";
 const LS_OLD = "showtime.v1";
@@ -720,6 +720,7 @@ async function gistPush(){
     await gistApi("PATCH", "/gists/"+state.gist.id, { files: { [GIST_FILE]: { content: JSON.stringify(syncedState()) } } });
     state.gist.lastPush = Date.now();
     localStorage.setItem(LS_KEY, JSON.stringify(state)); // persist lastPush without re-scheduling
+    feedPush();
   }catch(e){
     if(e.message==="auth") toast("Cloud sync: token invalid — reconnect in Settings", 4000);
   }
@@ -731,7 +732,8 @@ async function gistFileContent(g){
   if(!f) return null;
   if(f.content && !f.truncated) return f.content;
   if(f.raw_url){
-    const r = await fetch(f.raw_url, { headers: { "Authorization":"Bearer "+state.gist.token } });
+    // no Authorization header here: raw gist URLs are unguessable AND the header breaks CORS preflight in browsers
+    const r = await fetch(f.raw_url);
     if(r.ok) return r.text();
   }
   return f.content || null;
@@ -823,6 +825,129 @@ async function connectGist(){
 function disconnectGist(){
   if(!confirm("Disconnect cloud sync on this device?\n(Your data stays here, and the gist stays in your GitHub account.)")) return;
   state.gist = null; save(); openSettings();
+}
+
+/* ---------- friends feed (opt-in public gist) ---------- */
+const FEED_FILE = "episotia-feed.json";
+function feedItems(){
+  const out = [];
+  for(const sh of allShows()){
+    for(const [k,ts] of Object.entries(sh.watched)) if(ts>1) out.push({show:sh.title, k, ts, rw:false});
+    if(sh.rw) for(const [k,arr] of Object.entries(sh.rw)) for(const ts of arr) if(ts>1) out.push({show:sh.title, k, ts, rw:true});
+  }
+  out.sort((a,b)=>b.ts-a.ts);
+  return out.slice(0,50).map(x=>{
+    const p = x.k.split("-");
+    return {show:x.show, s:+p[0], n:+p[1], ts:x.ts, rw:x.rw};
+  });
+}
+async function feedPush(){
+  if(!state.feed || !state.feed.on || !state.gist || !state.gist.token) return;
+  const body = JSON.stringify({ name: state.feed.name || "Anonymous", updatedAt: Date.now(), items: feedItems() });
+  try{
+    if(!state.feed.id){
+      const g = await gistApi("POST","/gists",{ description:"Episotia activity feed", public:true, files:{ [FEED_FILE]:{ content: body } } });
+      state.feed.id = g.id;
+      localStorage.setItem(LS_KEY, JSON.stringify(state));
+    } else {
+      await gistApi("PATCH","/gists/"+state.feed.id, { files: { [FEED_FILE]: { content: body } } });
+    }
+  }catch(e){}
+}
+function toggleShare(){
+  if(state.feed && state.feed.on){
+    if(confirm("Stop sharing your activity?\nYour public feed will be emptied.")){
+      state.feed.on = false; save();
+      if(state.feed.id && state.gist && state.gist.token)
+        gistApi("PATCH","/gists/"+state.feed.id,{files:{[FEED_FILE]:{content:JSON.stringify({name:"",updatedAt:Date.now(),items:[]})}}}).catch(()=>{});
+      openFriends();
+    }
+    return;
+  }
+  if(!state.gist || !state.gist.token){ toast("Set up cloud sync first — sharing uses the same GitHub connection", 4200); return; }
+  const name = prompt("Display name your friends will see:", (state.feed && state.feed.name) || "");
+  if(name === null) return;
+  if(!confirm("Share your recent watch activity in a public feed?\nAnyone who knows your GitHub username could see it.")) return;
+  state.feed = { on:true, name:(name||"").trim()||"Anonymous", id:(state.feed && state.feed.id) || null };
+  save(); feedPush(); openFriends();
+  toast("Sharing on — tell friends your GitHub username ✓", 3600);
+}
+async function addFriend(){
+  const u = $("#fuser").value.trim().replace(/^@/,"");
+  if(!u) return;
+  toast("Looking up "+u+"…", 2000);
+  try{
+    const r = await fetch("https://api.github.com/users/"+encodeURIComponent(u)+"/gists?per_page=100");
+    if(!r.ok) throw 0;
+    const list = await r.json();
+    const g = (list||[]).find(x=>x.files && x.files[FEED_FILE]);
+    if(!g){ toast(u+" isn't sharing an Episotia feed (yet)", 3600); return; }
+    state.friends = state.friends || [];
+    if(state.friends.some(f=>f.id===g.id)){ toast("Already added"); return; }
+    state.friends.push({u, id:g.id});
+    friendsCache.ts = 0;
+    save(); openFriends();
+    toast("Added "+u+" ✓");
+  }catch(e){ toast("Couldn't reach GitHub — check the username and try again", 3600); }
+}
+function removeFriend(id){
+  state.friends = (state.friends||[]).filter(f=>f.id!==id);
+  friendsCache.ts = 0;
+  save(); openFriends();
+}
+function openFriends(){
+  const sharing = state.feed && state.feed.on;
+  const fr = state.friends || [];
+  $("#modal").innerHTML = `<div class="mbox" onclick="event.stopPropagation()">
+    <h3>Friends &amp; sharing</h3>
+    <button class="mrow" onclick="toggleShare()">${I.chat}${sharing?"Sharing on — as "+esc(state.feed.name):"Share my activity"}<span class="md">${sharing?"tap to stop":"off"}</span></button>
+    <div class="note">Friends see each other's recent episodes under the <b>Friends</b> filter in Watching. Each person needs: cloud sync on, sharing on, and each other's <b>GitHub username</b> added below.</div>
+    ${fr.map(f=>`<div class="mrow">@${esc(f.u)}<button class="unmark" style="margin-left:auto" onclick="removeFriend('${esc(f.id)}')" aria-label="Remove">${I.x}</button></div>`).join("")}
+    <input id="fuser" class="minput" placeholder="Add friend — GitHub username" autocomplete="off">
+    <button class="abtn primary" style="width:100%" onclick="addFriend()">Add friend</button>
+    <button class="abtn" style="width:100%;margin-top:10px" onclick="openSettings()">‹ Back</button>
+  </div>`;
+  $("#modal").classList.remove("hidden");
+  $("#modal").onclick = closeModal;
+}
+let friendsCache = {ts:0, rows:[], loading:false};
+async function loadFriendFeeds(){
+  friendsCache.loading = true;
+  const rows = [];
+  await Promise.all((state.friends||[]).map(async f => {
+    try{
+      const r = await fetch("https://api.github.com/gists/"+f.id);
+      if(!r.ok) return;
+      const g = await r.json();
+      const file = g.files && g.files[FEED_FILE];
+      if(!file) return;
+      let content = file.content;
+      if(file.truncated && file.raw_url){ const rr = await fetch(file.raw_url); if(rr.ok) content = await rr.text(); }
+      const d = JSON.parse(content||"{}");
+      for(const it of (d.items||[])) rows.push({ who: d.name || f.u, ts: it.ts, show: it.show, s: it.s, n: it.n, rw: !!it.rw });
+    }catch(e){}
+  }));
+  rows.sort((a,b)=>b.ts-a.ts);
+  friendsCache = {ts: Date.now(), rows: rows.slice(0,100), loading:false};
+  if(tab==="towatch" && twFilter==="friends") render();
+}
+function viewFriends(){
+  if(!(state.friends||[]).length)
+    return `<div class="empty"><div class="big">👥</div>Add friends in <b>Settings → Friends &amp; sharing</b>.<br><br>They turn on sharing, tell you their<br>GitHub username, and their recent<br>episodes show up here.</div>`;
+  if(Date.now() - friendsCache.ts > 5*60000 && !friendsCache.loading) loadFriendFeeds();
+  if(friendsCache.loading && !friendsCache.rows.length) return `<div class="empty"><div class="big">👥</div>Loading friend activity…</div>`;
+  if(!friendsCache.rows.length) return `<div class="empty"><div class="big">👥</div>No activity from your friends yet.<br>They need sharing turned on too.</div>`;
+  let h = "";
+  for(const r of friendsCache.rows){
+    h += `<div class="hrow">
+      <div class="hinfo">
+        <div class="ht" style="color:var(--gold)">${esc(r.who)}</div>
+        <div class="hs">${r.rw?`<span class="rwbadge">↻</span> `:""}${esc(r.show)} · <span class="epcode">${epCode(r.s,r.n)}</span></div>
+      </div>
+      <div class="hd">${agoStr(r.ts)}</div>
+    </div>`;
+  }
+  return h;
 }
 
 /* ---------- TVmaze unmatched fixer ---------- */
@@ -998,10 +1123,12 @@ function viewToWatch(){
     <button class="chip ${twFilter==="watch_later"?"act":""}" onclick="twFilter='watch_later';render()">Watch later</button>
     <button class="chip ${twFilter==="all"?"act":""}" onclick="twFilter='all';render()">All</button>
     <button class="chip gold ${twFilter==="history"?"act":""}" onclick="twFilter='history';render()">History</button>
+    ${(state.feed&&state.feed.on)||(state.friends&&state.friends.length)?`<button class="chip gold ${twFilter==="friends"?"act":""}" onclick="twFilter='friends';render()">Friends</button>`:""}
   </div>`;
   if(updateAvailable) h = `<div class="note" style="display:flex;gap:10px;align-items:center;border-left:3px solid var(--green)"><span style="flex:1">⬆ <b>Version ${esc(updateAvailable)}</b> is ready.</span><button class="abtn primary" style="flex:0 0 auto;padding:8px 16px" onclick="reloadApp()">Update now</button></div>` + h;
   if(state.showWhatsNew===APP_VERSION) h = `<div class="note" style="display:flex;gap:10px;align-items:center;border-left:3px solid var(--gold)"><span style="flex:1">✨ <b>Updated to v${APP_VERSION}</b> — ${esc(WHATS_NEW)}</span><button class="unmark" onclick="dismissWhatsNew()" aria-label="Dismiss">${I.x}</button></div>` + h;
   if(twFilter==="history") return h + viewHistory();
+  if(twFilter==="friends") return h + viewFriends();
   if(!allShows().length){
     return h + `<div class="empty"><div class="big">👋</div>Welcome to Episotia!<br><br>Add shows in the <b>Search</b> tab, or import your<br>TV Time export / a backup in <b>Settings</b>.</div>`;
   }
@@ -1537,6 +1664,7 @@ function openSettings(){
     ${gistOn
       ? `<button class="mrow" onclick="disconnectGist()">${I.cloud}Cloud sync: on ✓<span class="md">${state.gist.lastPush?"saved "+agoStr(state.gist.lastPush):"tap to disconnect"}</span></button>`
       : `<button class="mrow" onclick="openSyncSetup()">${I.cloud}Set up cloud sync<span class="md">recommended</span></button>`}
+    <button class="mrow" onclick="openFriends()">${I.chat}Friends &amp; sharing<span class="md">${(state.friends&&state.friends.length)?state.friends.length+" friend"+(state.friends.length>1?"s":""):((state.feed&&state.feed.on)?"sharing on":"off")} ›</span></button>
     <button class="mrow" onclick="exportBackup()">${I.down}Export backup (JSON)<span class="md">${kb} KB</span></button>
     <button class="mrow" onclick="document.getElementById('imp').click()">${I.up}Import backup / TV Time export<span class="md">.zip / .json / .html</span></button>
     ${unmatchedList().length?`<button class="mrow" onclick="openUnmatched()">${I.search}Fix unmatched shows<span class="md">${unmatchedList().length}</span></button>`:""}
