@@ -376,8 +376,8 @@ const SEED=[];
 <script>
 "use strict";
 /* ============ Episotia — personal TV tracker ============ */
-/* v2.11.1 */
-const APP_VERSION = "2.11.1";
+/* v2.11.2 */
+const APP_VERSION = "2.11.2";
 const WHATS_NEW = "Shows untouched for 30+ days wait in a \u2018Haven\u2019t watched for a while\u2019 group at the bottom of Watching, and closing a show now returns you to your place in the list.";
 const API = "https://api.tvmaze.com";
 const LS_KEY = "episotia.v1";
@@ -1860,30 +1860,6 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
   tab = b.dataset.tab; window.scrollTo(0,0); render();
 });
-// iOS phantom keyboard inset: if the viewport shrinks while no text box is focused
-// (no real keyboard), pin the nav back to the true bottom by the exact gap.
-if(window.visualViewport){
-  let H0 = window.innerHeight, pad0 = null;
-  const pinNav = () => {
-    H0 = Math.max(H0, window.innerHeight);
-    const nav = document.getElementById("nav");
-    if(!nav) return;
-    // the nav's bottom padding includes the home-bar safe area, which iOS collapses in keyboard mode —
-    // credit that back so the correction doesn't push the labels into the home-indicator zone
-    const padNow = parseFloat(getComputedStyle(nav).paddingBottom) || 0;
-    if(pad0 === null || padNow > pad0) pad0 = padNow;
-    const ae = document.activeElement;
-    const typing = ae && (ae.tagName==="INPUT" || ae.tagName==="TEXTAREA");
-    const gap = H0 - window.innerHeight;
-    const off = Math.min(150, gap - Math.max(0, pad0 - padNow));
-    // only counter big, keyboard-sized phantom insets (>48px); ignore viewport noise
-    nav.style.transform = (!typing && gap > 48 && off > 0) ? "translateY("+off+"px) translateZ(0)" : "";
-  };
-  window.visualViewport.addEventListener("resize", pinNav);
-  window.addEventListener("resize", pinNav);
-  window.addEventListener("focusout", () => setTimeout(pinNav, 120));
-  setTimeout(pinNav, 600);
-}
 $("#btn-sync").onclick = () => syncAll(false);
 $("#btn-settings").onclick = openSettings;
 render();
