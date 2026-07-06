@@ -114,6 +114,8 @@ h2.sec{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--
 /* ── chips ──────────────────────────────── */
 .chips{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 12px;scrollbar-width:none}
 .chips::-webkit-scrollbar{display:none}
+.chips.stick{position:sticky;top:calc(62px + var(--sat));z-index:28;background:var(--bg);margin-left:-16px;margin-right:-16px;padding-left:16px;padding-right:16px;padding-top:6px}
+.chips.stick.below-search{top:calc(124px + var(--sat))}
 .chip{
   white-space:nowrap;background:var(--bg3);border:1px solid var(--line);color:var(--tx2);
   border-radius:20px;padding:7px 15px;font-size:13px;font-weight:600;transition:all .15s;
@@ -340,9 +342,9 @@ html[data-theme="light"] .note b{color:var(--acc)}
 <main id="main"></main>
 
 <nav id="nav">
-  <button data-tab="towatch" aria-label="To Watch">
+  <button data-tab="towatch" aria-label="Watching">
     <svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg>
-    To Watch<span class="badge hidden" id="badge-tw"></span>
+    Watching<span class="badge hidden" id="badge-tw"></span>
   </button>
   <button data-tab="upcoming" aria-label="Upcoming">
     <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M16 3v4M8 3v4M3 10.5h18"/></svg>
@@ -373,9 +375,9 @@ const SEED=[];
 <script>
 "use strict";
 /* ============ Episotia — personal TV tracker ============ */
-/* v2.9.0 */
-const APP_VERSION = "2.9.0";
-const WHATS_NEW = "Rewatch tracking! Mark episodes, seasons or whole shows as rewatched (2×, 3×…) — shows up in History and Stats. Plus a cloud-sync fix for large libraries.";
+/* v2.10.0 */
+const APP_VERSION = "2.10.0";
+const WHATS_NEW = "Tap a search result for full show details, filter chips stay visible while you scroll, the first tab is now Watching, and imports no longer duplicate shows, reset statuses, or miss TV Time rewatches.";
 const API = "https://api.tvmaze.com";
 const LS_KEY = "episotia.v1";
 const LS_OLD = "showtime.v1";
@@ -981,7 +983,7 @@ function posterImg(sh){
 function favBadge(sh){ return sh.fav ? `<span class="titlefav">${I.star}</span>` : ""; }
 let twFilter = "watching";
 function viewToWatch(){
-  let h = `<div class="chips">
+  let h = `<div class="chips stick">
     <button class="chip ${twFilter==="watching"?"act":""}" onclick="twFilter='watching';render()">Watching</button>
     <button class="chip ${twFilter==="not_started_yet"?"act":""}" onclick="twFilter='not_started_yet';render()">Not started</button>
     <button class="chip ${twFilter==="watch_later"?"act":""}" onclick="twFilter='watch_later';render()">Watch later</button>
@@ -1100,7 +1102,7 @@ function viewShows(){
   const counts = {};
   for(const s of allShows()) counts[s.status] = (counts[s.status]||0)+1;
   let h = `<div class="searchbar"><div class="inputwrap"><input id="show-q" placeholder="Filter my ${allShows().length} shows…" value="${esc(showQuery)}" oninput="showQuery=this.value;renderKeepFocus('show-q')">${showQuery?`<button class="clearbtn" onclick="showQuery='';render()">✕</button>`:""}</div></div>
-  <div class="chips">
+  <div class="chips stick below-search">
     <button class="chip ${showFilter==="all"?"act":""}" onclick="showFilter='all';render()">All</button>
     <button class="chip gold ${showFilter==="fav"?"act":""}" onclick="showFilter='fav';render()">★ Favorites</button>
     ${Object.entries(STATUSES).map(([k,v]) =>
@@ -1190,11 +1192,13 @@ function viewSearch(){
     const d = r.show;
     const exists = allShows().some(s=>s.tvmazeId===d.id) || searchAdded[d.id];
     h += `<div class="card">
-      ${d.image?`<img class="poster" src="${esc(d.image.medium)}" alt="">`:`<div class="poster ph">${I.tv}</div>`}
-      <div class="info">
-        <div class="title">${esc(d.name)}</div>
-        <div class="sub">${d.premiered?d.premiered.slice(0,4):"?"} · ${esc((d.network&&d.network.name)||(d.webChannel&&d.webChannel.name)||"")}</div>
-        <div class="meta">${(d.genres||[]).slice(0,3).map(esc).join(" · ")}</div>
+      <div style="display:flex;gap:13px;align-items:center;flex:1;min-width:0" onclick="openSearchShow(${d.id})">
+        ${d.image?`<img class="poster" src="${esc(d.image.medium)}" alt="">`:`<div class="poster ph">${I.tv}</div>`}
+        <div class="info">
+          <div class="title">${esc(d.name)}</div>
+          <div class="sub">${d.premiered?d.premiered.slice(0,4):"?"} · ${esc((d.network&&d.network.name)||(d.webChannel&&d.webChannel.name)||"")}</div>
+          <div class="meta">${(d.genres||[]).slice(0,3).map(esc).join(" · ")}</div>
+        </div>
       </div>
       <button class="abtn ${exists?"":"primary"}" style="flex:0 0 auto" ${exists?"disabled":""} onclick="addShow(${d.id})">${exists?"✓ Added":"+ Add"}</button>
     </div>`;
@@ -1437,6 +1441,67 @@ async function addShow(tvmazeId){
   catch(e){}
 }
 
+/* ---------- search result preview ---------- */
+let previewData = null;
+async function openSearchShow(tvmazeId){
+  const existing = allShows().find(s=>s.tvmazeId===tvmazeId);
+  if(existing){ openShow(existing.key); return; }
+  const r = searchResults.find(x=>x.show.id===tvmazeId);
+  if(!r) return;
+  previewData = r.show;
+  renderPreview(r.show, null);
+  $("#sheet").classList.remove("hidden");
+  window.scrollTo(0,0);
+  let eps = [];
+  try{ eps = await apiGet("/shows/"+tvmazeId+"/episodes") || []; }catch(e){}
+  if(previewData === r.show && !$("#sheet").classList.contains("hidden")) renderPreview(r.show, eps);
+}
+function renderPreview(d, eps){
+  const img = d.image && d.image.medium;
+  const meta = [
+    esc((d.network&&d.network.name)||(d.webChannel&&d.webChannel.name)||""),
+    d.status?esc(d.status):"",
+    d.premiered?d.premiered.slice(0,4):"",
+    d.averageRuntime?d.averageRuntime+" min":""
+  ].filter(Boolean).join(" · ");
+  const sum = stripHtml(d.summary);
+  const exists = allShows().some(s=>s.tvmazeId===d.id) || searchAdded[d.id];
+  let seasons = "";
+  if(eps===null) seasons = `<div class="note">Loading episodes…</div>`;
+  else if(eps.length){
+    const by = {};
+    for(const e of eps){ if(e.season>=1) (by[e.season] = by[e.season]||[]).push(e); }
+    for(const sn of Object.keys(by).map(Number).sort((a,b)=>a-b)){
+      seasons += `<div class="season"><div class="season-h"><span class="sn">Season ${sn}</span><span class="sc">${by[sn].length} episodes</span></div></div>`;
+    }
+  }
+  $("#sheet").innerHTML = `
+  <div class="hero">
+    ${img?`<div class="hbg" style="background-image:url('${esc(img)}')"></div>`:`<div class="hbg" style="background:var(--bg3)"></div>`}
+    <div class="hgrad"></div>
+    <button class="icon-btn hback" onclick="closeSheet()" aria-label="Back">${I.back}</button>
+  </div>
+  <div class="dwrap">
+    <div class="dtop">
+      ${img?`<img src="${esc(img)}" alt="">`:`<div class="dph">${I.tv}</div>`}
+      <div class="dhead">
+        <div class="dtitle">${esc(d.name)}</div>
+        <div class="dmeta">${meta}${(d.genres&&d.genres.length)?"<br>"+d.genres.slice(0,3).map(esc).join(" · "):""}</div>
+      </div>
+    </div>
+    ${sum?`<div class="epsum" style="margin-top:16px">${esc(sum)}</div>`:""}
+    <div class="actions" style="margin-top:16px">
+      <button class="abtn primary" ${exists?"disabled":""} onclick="addFromPreview(${d.id})">${exists?"✓ In your library":"+ Add to library"}</button>
+    </div>
+    ${seasons}
+  </div>`;
+}
+async function addFromPreview(id){
+  await addShow(id);
+  const sh = allShows().find(s=>s.tvmazeId===id);
+  if(sh) openShow(sh.key); else closeSheet();
+}
+
 /* ---------- settings / backup / import ---------- */
 function openSettings(){
   const kb = Math.round((localStorage.getItem(LS_KEY)||"").length/1024);
@@ -1574,9 +1639,13 @@ function finishGdpr(parsed){
 }
 function mergeShows(incoming){
   let added = 0;
+  const byTvdb = {};
+  for(const k in state.shows){ const s = state.shows[k]; if(s.tvdbId) byTvdb[s.tvdbId] = s; }
   for(const key in incoming){
-    const inc = incoming[key], cur = state.shows[key];
-    if(!cur){ state.shows[key] = inc; added++; continue; }
+    const inc = incoming[key];
+    // match by key OR by TVDB id (search-added shows use "tv…" keys) so re-imports never duplicate a show or reset its status
+    const cur = state.shows[key] || (inc.tvdbId && byTvdb[inc.tvdbId]) || null;
+    if(!cur){ state.shows[key] = inc; if(inc.tvdbId) byTvdb[inc.tvdbId] = inc; added++; continue; }
     for(const wk in inc.watched){
       const v = inc.watched[wk];
       if(!(wk in cur.watched) || (cur.watched[wk] <= 1 && v > 1) || v < cur.watched[wk]) cur.watched[wk] = v;
@@ -1643,10 +1712,14 @@ function buildFromGdpr(files){
     const k = id + "|" + s + "|" + e; const cur = watch[k];
     if(cur == null || ms < cur) watch[k] = ms;
   };
+  const rewatches = {}; // "id|s|e" -> [ms, …] — TV Time logs rewatches in t2 rows whose key starts with "rewatch-episode"
   for(const r of t2){
     const m = (r.gsi||"").match(/(\d{9,})/);
     const ms = m ? (+m[1]) * 1000 : gdprMs(r.created_at);
-    add(r.s_id, gdprInt(r.season_number), gdprInt(r.episode_number), ms);
+    const s = gdprInt(r.season_number), e = gdprInt(r.episode_number);
+    if(/^rewatch-episode/.test(r.key||"") && r.s_id && s != null && e != null && s >= 1 && ms != null)
+      (rewatches[r.s_id+"|"+s+"|"+e] = rewatches[r.s_id+"|"+s+"|"+e] || []).push(ms);
+    add(r.s_id, s, e, ms);
   }
   for(const r of ses)
     add(name2id[(r.tv_show_name||"").trim()], gdprInt(r.episode_season_number), gdprInt(r.episode_number), gdprMs(r.created_at) || gdprMs(r.updated_at));
@@ -1670,6 +1743,14 @@ function buildFromGdpr(files){
       status: status, fav: false, image: null, genres: [], network: "", runtime: null,
       premiered: null, tvStatus: "", eps: null, watched: w, seeded: true, lastSync: 0
     };
+  }
+  for(const k in rewatches){
+    const p = k.split("|");
+    const sh = shows["db" + parseInt(p[0], 10)];
+    if(!sh) continue;
+    if(!sh.rw) sh.rw = {};
+    const arr = sh.rw[p[1] + "-" + p[2]] = sh.rw[p[1] + "-" + p[2]] || [];
+    for(const ms of rewatches[k]) if(arr.indexOf(ms) === -1) arr.push(ms);
   }
   // rewatches (cpt = how many extra watches)
   for(const r of (files["rewatched_episode.csv"] || [])){
@@ -1742,7 +1823,7 @@ if(typeof document!=="undefined" && document.addEventListener){
 load();
 applyTheme();
 versionCheck();
-document.querySelectorAll("nav button").forEach(b => b.onclick = () => { tab = b.dataset.tab; render(); });
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => { tab = b.dataset.tab; window.scrollTo(0,0); render(); });
 $("#btn-sync").onclick = () => syncAll(false);
 $("#btn-settings").onclick = openSettings;
 render();
