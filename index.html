@@ -376,9 +376,9 @@ const SEED=[];
 <script>
 "use strict";
 /* ============ Episotia — personal TV tracker ============ */
-/* v2.14.0 */
-const APP_VERSION = "2.14.0";
-const WHATS_NEW = "Watch streaks and per-show completion bars in Stats, plus an optional calendar export of upcoming episodes (Settings \u2192 Upcoming to calendar).";
+/* v2.14.1 */
+const APP_VERSION = "2.14.1";
+const WHATS_NEW = "Progress bars can no longer exceed 100% on shows where TV Time and TVmaze number seasons differently (La Casa de Papel & friends). Mismatched import marks still count in Stats and are now flagged on the show page.";
 const API = "https://api.tvmaze.com";
 const LS_KEY = "episotia.v1";
 const LS_OLD = "showtime.v1";
@@ -577,8 +577,20 @@ function nextUnwatched(sh){
   return airedList(sh).find(e => !sh.watched[wkey(e)]) || null;
 }
 function watchedCount(sh){
-  if(sh.eps) return Object.keys(sh.watched).length;
+  if(sh.eps){
+    let n = 0;
+    for(const e of sh.eps) if(e.s >= 1 && sh.watched[wkey(e)]) n++;
+    return n;
+  }
   return sh.seedWatched || 0;
+}
+function orphanCount(sh){
+  // watched marks that don't match any TVmaze episode — TVDB/Netflix "parts" vs broadcast seasons (e.g. La Casa de Papel)
+  if(!sh.eps) return 0;
+  const have = new Set(sh.eps.filter(e => e.s >= 1).map(wkey));
+  let n = 0;
+  for(const k of Object.keys(sh.watched)) if(!have.has(k)) n++;
+  return n;
 }
 function totalRegular(sh){
   return sh.eps ? sh.eps.filter(e=>e.s>=1).length : (sh.seedWatched||0) + (sh.seedUnwatched?sh.seedUnwatched.length:0);
@@ -1260,7 +1272,7 @@ function viewToWatch(){
 }
 function twCard(sh){
   const e = nextUnwatched(sh), rem = remaining(sh);
-  const wc = Object.keys(sh.watched).length, tot = totalRegular(sh);
+  const wc = watchedCount(sh), tot = totalRegular(sh);
   return `<div class="swipe-wrap">
     <div class="swipe-bg sb-watch">${I.check}</div>
     <div class="swipe-bg sb-later">${I.clock}</div>
@@ -1376,7 +1388,7 @@ function viewStats(){
   const now = new Date(); const mStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
   const perShow = [], genreMin = {};
   for(const sh of shows){
-    const wc = watchedCount(sh);
+    const wc = watchedCount(sh) + orphanCount(sh); // orphan marks are real watches, just numbered differently
     const rwc = totalRewatches(sh);
     eps += wc; rws += rwc;
     const rt = sh.runtime || 40;
@@ -1554,6 +1566,7 @@ function renderSheet(key){
       <div class="dpr"><span><b>${wc}</b> / ${tot} episodes</span><span>${pct}%</span></div>
       <div class="progress"><i class="${tot&&wc>=tot?"full":""}" style="width:${pct}%"></i></div>
     </div>
+    ${(()=>{const oc=orphanCount(sh);return oc?`<div class="note" style="margin-top:10px">↔ <b>${oc} watched mark${oc>1?"s":""}</b> from your import use different season numbering than TVmaze (Netflix "parts" vs broadcast seasons). They still count in Stats — just not in this bar. Tick the right episodes below if you want them to match.</div>`:"";})()}
     <div class="statusrow">
       ${Object.entries(STATUSES).map(([k,v])=>
         `<button class="chip ${sh.status===k?"act":""}" onclick="setStatus('${key}','${k}')">${v.label}</button>`).join("")}
