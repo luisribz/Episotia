@@ -18,7 +18,7 @@
   --tx:#f0f2f8; --tx2:#9aa2b8; --tx3:#5d6478;
   --acc:#8b7cf8; --acc-2:#c084fc; --grad:linear-gradient(135deg,#8b7cf8,#c084fc);
   --green:#34d399; --red:#fb7185; --gold:#fbbf24;
-  --hdrbg:rgba(10,12,17,.85); --navbg:rgba(13,15,22,.88); --toastbg:#252b3d;
+  --hdrbg:rgba(10,12,17,.85); --navbg:rgba(13,15,22,.88); --navsolid:#0d0f16; --toastbg:#252b3d;
   --rad:16px; --rad-s:10px;
   --sab:env(safe-area-inset-bottom,0px); --sat:env(safe-area-inset-top,0px);
   --shadow:0 4px 16px rgba(0,0,0,.35);
@@ -27,7 +27,7 @@
 html[data-theme="light"]{
   --bg:#f3f4f9; --bg2:#ffffff; --bg3:#e9ebf3; --bg4:#dde1ee; --line:#e3e6f0; --line2:#c6cde0;
   --tx:#171923; --tx2:#525a70; --tx3:#8f96ab;
-  --hdrbg:rgba(243,244,249,.85); --navbg:rgba(248,249,252,.92); --toastbg:#ffffff;
+  --hdrbg:rgba(243,244,249,.85); --navbg:rgba(248,249,252,.92); --navsolid:#f8f9fc; --toastbg:#ffffff;
   --shadow:0 4px 14px rgba(30,35,60,.08);
   color-scheme:light;
 }
@@ -86,9 +86,10 @@ header{
 /* ── bottom nav ─────────────────────────── */
 nav{
   position:fixed;bottom:0;left:0;right:0;z-index:40;
-  background:var(--navbg);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  background:var(--navsolid);
   border-top:1px solid var(--line);
   display:flex;padding:6px 8px calc(6px + var(--sab));
+  transform:translateZ(0);
 }
 nav button{
   flex:1;padding:7px 0 5px;display:flex;flex-direction:column;align-items:center;gap:3px;
@@ -375,8 +376,8 @@ const SEED=[];
 <script>
 "use strict";
 /* ============ Episotia — personal TV tracker ============ */
-/* v2.10.1 */
-const APP_VERSION = "2.10.1";
+/* v2.10.2 */
+const APP_VERSION = "2.10.2";
 const WHATS_NEW = "TV Time imports now respect unfollowed/archived shows — old watched shows land in Stopped instead of flooding Watching. Plus everything from 2.10.0: tappable search results, sticky filter chips, rewatch import.";
 const API = "https://api.tvmaze.com";
 const LS_KEY = "episotia.v1";
