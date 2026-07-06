@@ -259,6 +259,8 @@ h2.sec{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--
 .season-h .caret{color:var(--tx3);transition:transform .18s;font-size:12px}
 .season.open .caret{transform:rotate(90deg)}
 .season-mark{font-size:11px;font-weight:800;color:var(--acc);background:rgba(139,124,248,.13);padding:5px 11px;border-radius:14px;letter-spacing:.3px}
+.season-mark.rw{color:var(--gold);background:rgba(251,191,36,.13)}
+.rwbadge{font-size:10px;font-weight:800;color:var(--gold);background:rgba(251,191,36,.13);border-radius:9px;padding:2px 6px;flex-shrink:0}
 .eprow{display:flex;align-items:center;gap:11px;padding:10px 15px;border-top:1px solid var(--line);font-size:13.5px;transition:background .12s}
 .eprow:active{background:var(--bg3)}
 .eprow .en{color:var(--tx3);font-variant-numeric:tabular-nums;width:30px;flex-shrink:0;font-weight:700;font-size:12px}
@@ -371,8 +373,9 @@ const SEED=[];
 <script>
 "use strict";
 /* ============ Episotia — personal TV tracker ============ */
-const APP_VERSION = "2.7.1";
-const WHATS_NEW = "One-tap in-app updates, filter chips recenter when selected, search bars stay visible while scrolling and gained a clear button.";
+/* v2.9.0 */
+const APP_VERSION = "2.9.0";
+const WHATS_NEW = "Rewatch tracking! Mark episodes, seasons or whole shows as rewatched (2×, 3×…) — shows up in History and Stats. Plus a cloud-sync fix for large libraries.";
 const API = "https://api.tvmaze.com";
 const LS_KEY = "episotia.v1";
 const LS_OLD = "showtime.v1";
@@ -717,13 +720,29 @@ async function gistPush(){
     if(e.message==="auth") toast("Cloud sync: token invalid — reconnect in Settings", 4000);
   }
 }
+async function gistFileContent(g){
+  // The gist API truncates file content over ~1MB in JSON responses;
+  // large libraries must be fetched via raw_url instead.
+  const f = g && g.files && g.files[GIST_FILE];
+  if(!f) return null;
+  if(f.content && !f.truncated) return f.content;
+  if(f.raw_url){
+    const r = await fetch(f.raw_url, { headers: { "Authorization":"Bearer "+state.gist.token } });
+    if(r.ok) return r.text();
+  }
+  return f.content || null;
+}
 async function gistPull(){
   if(!state.gist || !state.gist.token || !state.gist.id) return;
   try{
-    const g = await gistApi("GET", "/gists/"+state.gist.id);
-    const f = g.files && g.files[GIST_FILE];
-    if(!f || !f.content) return;
-    const remote = JSON.parse(f.content);
+    const content = await gistFileContent(await gistApi("GET", "/gists/"+state.gist.id));
+    if(!content) return;
+    let remote = null;
+    try{ remote = JSON.parse(content); }
+    catch(e){ toast("Cloud sync: couldn't read cloud data", 4000); return; }
+    if(!remote || !remote.shows) return;
+    // safety: never let an empty cloud silently wipe a device with data
+    if(!Object.keys(remote.shows).length && Object.keys(state.shows).length){ scheduleGistPush(); return; }
     if((remote.updatedAt||0) > (state.updatedAt||0)){
       applyingRemote = true;
       const gist = state.gist;
@@ -765,9 +784,16 @@ async function connectGist(){
     const mine = (list||[]).find(g => g.files && g.files[GIST_FILE]);
     if(mine){
       state.gist.id = mine.id;
-      const g = await gistApi("GET","/gists/"+mine.id);
+      const content = await gistFileContent(await gistApi("GET","/gists/"+mine.id));
       let remote = null;
-      try{ remote = JSON.parse(g.files[GIST_FILE].content||"{}"); }catch(e){}
+      if(content){
+        try{ remote = JSON.parse(content); }
+        catch(e){ // cloud data exists but is unreadable — do NOT connect (a later push would overwrite it)
+          state.gist = null; save();
+          toast("Couldn't read your cloud data — sync not connected. Try again.", 4500);
+          return;
+        }
+      }
       if(remote && remote.shows){
         const rn = Object.keys(remote.shows).length, ln = Object.keys(state.shows).length;
         if(confirm(`Found cloud data (${rn} shows). Load it on this device?\n\nOK = use cloud data here\nCancel = overwrite cloud with this device (${ln} shows)`)){
@@ -846,17 +872,21 @@ function dismissUnmatched(){
 
 /* ---------- actions + undo ---------- */
 let undoData = null;
-function registerUndo(showKey, keys, msg){
+function registerUndo(showKey, keys, msg, type="watch"){
   if(!keys.length) return;
-  undoData = {showKey, keys};
+  undoData = {showKey, keys, type};
   toast(msg, 6000, {label:"Undo", fn:undoLast});
 }
 function undoLast(){
   if(!undoData) return;
   const sh = state.shows[undoData.showKey];
   if(sh){
-    for(const k of undoData.keys) delete sh.watched[k];
-    autoStatus(sh, true);
+    if(undoData.type==="rewatch"){
+      for(const k of undoData.keys) removeRewatch(sh, k);
+    } else {
+      for(const k of undoData.keys) delete sh.watched[k];
+      autoStatus(sh, true);
+    }
     save();
   }
   undoData = null;
@@ -886,6 +916,41 @@ function markAll(sh){
   }
   autoStatus(sh, true); save();
   registerUndo(sh.key, added, `${added.length} episodes marked ✓`);
+}
+
+/* ---------- rewatches ---------- */
+/* sh.rw = { "s-e": [msTimestamp, …] } — one entry per extra watch beyond the first */
+function rwList(sh, k){ return (sh.rw && sh.rw[k]) || []; }
+function playCount(sh, k){ return (sh.watched[k] ? 1 : 0) + rwList(sh, k).length; }
+function totalRewatches(sh){ let n = 0; if(sh.rw) for(const k in sh.rw) n += sh.rw[k].length; return n; }
+function addRewatch(sh, k, ts){ if(!sh.rw) sh.rw = {}; (sh.rw[k] = sh.rw[k] || []).push(ts || Date.now()); }
+function removeRewatch(sh, k, ts){
+  if(!sh.rw || !sh.rw[k]) return;
+  const i = ts ? sh.rw[k].indexOf(ts) : sh.rw[k].length - 1;
+  if(i >= 0) sh.rw[k].splice(i, 1);
+  if(!sh.rw[k].length) delete sh.rw[k];
+  if(!Object.keys(sh.rw).length) delete sh.rw;
+}
+function rewatchEp(sh, e){
+  const k = wkey(e);
+  addRewatch(sh, k); save();
+  registerUndo(sh.key, [k], `↻ ${epCode(e.s,e.n)} — watched ${playCount(sh,k)}×`, "rewatch");
+}
+function rewatchSeason(sh, season){
+  const t = todayStr(), keys = [], now = Date.now();
+  for(const e of sh.eps){
+    if(e.s===season && e.a && e.a<=t && sh.watched[wkey(e)]){ addRewatch(sh, wkey(e), now); keys.push(wkey(e)); }
+  }
+  save();
+  registerUndo(sh.key, keys, `↻ Season ${season}: ${keys.length} rewatched`, "rewatch");
+}
+function rewatchAll(sh){
+  const keys = [], now = Date.now();
+  for(const e of airedList(sh)){
+    if(sh.watched[wkey(e)]){ addRewatch(sh, wkey(e), now); keys.push(wkey(e)); }
+  }
+  save();
+  registerUndo(sh.key, keys, `↻ ${keys.length} episodes rewatched`, "rewatch");
 }
 
 /* ---------- rendering ---------- */
@@ -970,31 +1035,33 @@ function viewHistory(){
     for(const [k,ts] of Object.entries(sh.watched)){
       if(ts>1) hist.push({sh, k, ts});
     }
+    if(sh.rw) for(const [k,arr] of Object.entries(sh.rw)) for(const ts of arr) if(ts>1) hist.push({sh, k, ts, rw:true});
   }
   hist.sort((a,b)=>b.ts-a.ts);
   if(!hist.length) return `<div class="empty"><div class="big">🕐</div>Episodes you mark as watched<br>will appear here.<br><br><span style="font-size:12px">(Your imported TV Time history has no<br>timestamps, so it starts fresh from today.)</span></div>`;
   let h = "";
-  for(const {sh,k,ts} of hist.slice(0,150)){
+  for(const {sh,k,ts,rw} of hist.slice(0,150)){
     const [s,n] = k.split("-").map(Number);
     const ep = sh.eps ? sh.eps.find(e=>e.s===s&&e.n===n) : null;
     h += `<div class="hrow">
       ${sh.image?`<img class="hposter" src="${esc(sh.image)}" loading="lazy" alt="">`:`<div class="hposter poster ph">${I.tv}</div>`}
       <div class="hinfo" onclick="openShow('${sh.key}')">
         <div class="ht">${esc(sh.title)}</div>
-        <div class="hs"><span class="epcode">${epCode(s,n)}</span>${ep&&ep.t?" · "+esc(ep.t):""}</div>
+        <div class="hs"><span class="epcode">${epCode(s,n)}</span>${rw?` <span class="rwbadge">↻ ${playCount(sh,k)}×</span>`:""}${ep&&ep.t?" · "+esc(ep.t):""}</div>
       </div>
       <div class="hd">${agoStr(ts)}</div>
-      <button class="unmark" onclick="unmarkHistory('${sh.key}','${k}')" aria-label="Un-mark">${I.x}</button>
+      <button class="unmark" onclick="unmarkHistory('${sh.key}','${k}',${rw?ts:0})" aria-label="Un-mark">${I.x}</button>
     </div>`;
   }
   return h;
 }
-function unmarkHistory(showKey, k){
+function unmarkHistory(showKey, k, rwTs){
   const sh = state.shows[showKey];
   if(!sh) return;
-  delete sh.watched[k];
-  autoStatus(sh, true); save(); render();
-  toast("Removed from history");
+  if(rwTs){ removeRewatch(sh, k, rwTs); }
+  else { delete sh.watched[k]; autoStatus(sh, true); }
+  save(); render();
+  toast(rwTs ? "Rewatch removed" : "Removed from history");
 }
 function viewUpcoming(){
   const t = todayStr();
@@ -1055,17 +1122,19 @@ function viewShows(){
 }
 function viewStats(){
   const shows = allShows();
-  let eps = 0, mins = 0, newThisMonth = 0;
+  let eps = 0, mins = 0, newThisMonth = 0, rws = 0;
   const now = new Date(); const mStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
   const perShow = [], genreMin = {};
   for(const sh of shows){
     const wc = watchedCount(sh);
-    eps += wc;
+    const rwc = totalRewatches(sh);
+    eps += wc; rws += rwc;
     const rt = sh.runtime || 40;
-    mins += wc*rt;
+    mins += (wc+rwc)*rt;
     perShow.push([sh.title, wc]);
     for(const g of (sh.genres||[])) genreMin[g] = (genreMin[g]||0) + wc;
     for(const v of Object.values(sh.watched)) if(v>1 && v>=mStart) newThisMonth++;
+    if(sh.rw) for(const arr of Object.values(sh.rw)) for(const v of arr) if(v>1 && v>=mStart) newThisMonth++;
   }
   const days = Math.floor(mins/1440), hrs = Math.floor(mins%1440/60);
   const counts = {};
@@ -1080,6 +1149,7 @@ function viewStats(){
     <div class="stat-card"><div class="v">${days}<span style="font-size:15px">d</span> ${hrs}<span style="font-size:15px">h</span></div><div class="l">Time spent</div></div>
     <div class="stat-card"><div class="v">${shows.length}</div><div class="l">Shows tracked</div></div>
     <div class="stat-card"><div class="v">${newThisMonth}</div><div class="l">Eps this month</div></div>
+    ${rws?`<div class="stat-card"><div class="v">${rws.toLocaleString()}</div><div class="l">Rewatches</div></div>`:""}
   </div>
   <h2 class="sec">By status</h2>
   ${Object.entries(STATUSES).map(([k,v])=>{
@@ -1090,8 +1160,11 @@ function viewStats(){
   ${(()=>{
     const yrs = {};
     let undatedN = 0;
-    for(const sh of shows) for(const v of Object.values(sh.watched||{})){
-      if(v>1) { const y = new Date(v).getFullYear(); yrs[y]=(yrs[y]||0)+1; } else undatedN++;
+    for(const sh of shows){
+      for(const v of Object.values(sh.watched||{})){
+        if(v>1) { const y = new Date(v).getFullYear(); yrs[y]=(yrs[y]||0)+1; } else undatedN++;
+      }
+      if(sh.rw) for(const arr of Object.values(sh.rw)) for(const v of arr) if(v>1){ const y = new Date(v).getFullYear(); yrs[y]=(yrs[y]||0)+1; }
     }
     const ents = Object.entries(yrs).sort((a,b)=>b[0]-a[0]);
     if(!ents.length) return '<div class="empty">No dated episodes yet.</div>';
@@ -1164,18 +1237,23 @@ function renderSheet(key){
     for(const sn of Object.keys(bySeason).map(Number).sort((a,b)=>a-b)){
       const eps = bySeason[sn];
       const w = eps.filter(e=>sh.watched[wkey(e)]).length;
+      const aired = eps.filter(e=>e.a&&e.a<=t).length;
       const open = !!openSeasons[sn];
       seasonsHtml += `<div class="season ${open?"open":""}">
         <div class="season-h" onclick="toggleSeason('${key}',${sn})">
           <span class="caret">▶</span><span class="sn">Season ${sn}</span>
-          ${w<eps.filter(e=>e.a&&e.a<=t).length?`<button class="season-mark" onclick="event.stopPropagation();markSeasonUi('${key}',${sn})">MARK ALL</button>`:""}
+          ${w<aired
+            ? `<button class="season-mark" onclick="event.stopPropagation();markSeasonUi('${key}',${sn})">MARK SEASON ✓</button>`
+            : (aired&&w ? `<button class="season-mark rw" onclick="event.stopPropagation();rewatchSeasonUi('${key}',${sn})">REWATCH ↻</button>` : "")}
           <span class="sc">${w}/${eps.length}</span>
         </div>
         ${open ? eps.map(e=>{
           const future = !e.a || e.a > t;
           const on = !!sh.watched[wkey(e)];
+          const pc = playCount(sh, wkey(e));
           return `<div class="eprow ${on?"watched":""} ${future?"future":""}" onclick="openEpisode('${key}',${e.s},${e.n})">
             <span class="en">${e.n}</span><span class="et">${esc(e.t||"Episode "+e.n)}</span>
+            ${pc>1?`<span class="rwbadge">${pc}×</span>`:""}
             <span class="ed">${e.a?fmtDate(e.a):"TBA"}</span>
             <span class="tick" onclick="event.stopPropagation();${future?"":`toggleEp('${key}',${e.s},${e.n})`}">${I.check}</span>
           </div>`;
@@ -1219,7 +1297,8 @@ function renderSheet(key){
         `<button class="chip ${sh.status===k?"act":""}" onclick="setStatus('${key}','${k}')">${v.label}</button>`).join("")}
     </div>
     <div class="actions">
-      ${sh.eps&&remaining(sh)>0?`<button class="abtn primary" onclick="markAllUi('${key}')">✓ Mark all watched</button>`:""}
+      ${sh.eps&&remaining(sh)>0?`<button class="abtn primary" onclick="markAllUi('${key}')">✓ Mark all watched</button>`
+        :(sh.eps&&airedList(sh).length?`<button class="abtn primary" onclick="rewatchAllUi('${key}')">↻ Rewatch show</button>`:"")}
       <button class="abtn" style="color:var(--red)" onclick="removeShow('${key}')">Remove</button>
     </div>
     ${seasonsHtml}
@@ -1227,6 +1306,12 @@ function renderSheet(key){
 }
 function markAllUi(key){ markAll(state.shows[key]); renderSheet(key); }
 function markSeasonUi(key, sn){ markSeason(state.shows[key], sn); renderSheet(key); }
+function rewatchSeasonUi(key, sn){ rewatchSeason(state.shows[key], sn); renderSheet(key); }
+function rewatchAllUi(key){
+  const sh = state.shows[key];
+  if(!confirm(`Rewatch "${sh.title}"?\nEvery watched episode gets +1 watch.`)) return;
+  rewatchAll(sh); renderSheet(key);
+}
 function toggleSeason(key, sn){ openSeasons[sn] = !openSeasons[sn]; renderSheet(key); }
 function toggleEp(key, s, n){
   const sh = state.shows[key];
@@ -1298,9 +1383,10 @@ function renderEpisode(key, s, n){
     ${img?`<img class="epimg" src="${esc(img)}" alt="">`:""}
     ${rating?`<div class="eprating">${I.star}${Number(rating).toFixed(1)}<span style="color:var(--tx3);font-weight:600;font-size:12px">/10 · TVmaze community</span></div>`:""}
     ${sum?`<div class="epsum">${esc(sum)}</div>`:`<div class="epsum" style="color:var(--tx3)">${future?"Not aired yet.":"No description available."}</div>`}
-    ${on&&sh.watched[s+"-"+n]>1?`<div class="epmeta" style="color:var(--green);font-weight:700">✓ Watched ${fmtDate(new Date(sh.watched[s+"-"+n]).toISOString().slice(0,10))}</div>`:(on?`<div class="epmeta" style="color:var(--green);font-weight:700">✓ Watched (date unknown)</div>`:"")}
+    ${on&&sh.watched[s+"-"+n]>1?`<div class="epmeta" style="color:var(--green);font-weight:700">✓ Watched ${fmtDate(new Date(sh.watched[s+"-"+n]).toISOString().slice(0,10))}${rwList(sh,s+"-"+n).length?` <span style="color:var(--gold)">· ↻ ${playCount(sh,s+"-"+n)}× total</span>`:""}</div>`:(on?`<div class="epmeta" style="color:var(--green);font-weight:700">✓ Watched (date unknown)${rwList(sh,s+"-"+n).length?` <span style="color:var(--gold)">· ↻ ${playCount(sh,s+"-"+n)}× total</span>`:""}</div>`:"")}
     <div class="actions" style="margin:10px 0 0">
       ${future?"":`<button class="abtn ${on?"":"primary"}" onclick="toggleEpModal('${key}',${s},${n})">${on?"Unmark watched":"✓ Mark watched"}</button>`}
+      ${!future&&on?`<button class="abtn" style="color:var(--gold)" onclick="rewatchEpModal('${key}',${s},${n})">↻ Rewatch</button>`:""}
       ${d&&d.url?`<button class="abtn" onclick="window.open('${esc(d.url)}','_blank')">TVmaze</button>`:""}
       <button class="abtn" onclick="window.open(redditUrl(state.shows['${key}'],${s},${n}),'_blank')">Reddit</button>
     </div>
@@ -1310,6 +1396,13 @@ function toggleEpModal(key, s, n){
   const sh = state.shows[key];
   const e = (sh.eps||[]).find(x=>x.s===s&&x.n===n) || {s, n};
   markWatched(sh, e, !sh.watched[s+"-"+n]);
+  if(currentSheetKey && !$("#sheet").classList.contains("hidden")) renderSheet(currentSheetKey);
+  renderEpisode(key, s, n);
+}
+function rewatchEpModal(key, s, n){
+  const sh = state.shows[key];
+  const e = (sh.eps||[]).find(x=>x.s===s&&x.n===n) || {s, n};
+  rewatchEp(sh, e);
   if(currentSheetKey && !$("#sheet").classList.contains("hidden")) renderSheet(currentSheetKey);
   renderEpisode(key, s, n);
 }
@@ -1356,12 +1449,12 @@ function openSettings(){
       ? `<button class="mrow" onclick="disconnectGist()">${I.cloud}Cloud sync: on ✓<span class="md">${state.gist.lastPush?"saved "+agoStr(state.gist.lastPush):"tap to disconnect"}</span></button>`
       : `<button class="mrow" onclick="openSyncSetup()">${I.cloud}Set up cloud sync<span class="md">recommended</span></button>`}
     <button class="mrow" onclick="exportBackup()">${I.down}Export backup (JSON)<span class="md">${kb} KB</span></button>
-    <button class="mrow" onclick="document.getElementById('imp').click()">${I.up}Import backup / TV Time export<span class="md">.json / .html</span></button>
+    <button class="mrow" onclick="document.getElementById('imp').click()">${I.up}Import backup / TV Time export<span class="md">.zip / .json / .html</span></button>
     ${unmatchedList().length?`<button class="mrow" onclick="openUnmatched()">${I.search}Fix unmatched shows<span class="md">${unmatchedList().length}</span></button>`:""}
     <button class="mrow" onclick="closeModal();syncAll(true)">${I.refresh}Full re-sync (all shows)</button>
     <button class="mrow" style="color:var(--red)" onclick="resetAll()">${I.trash}Reset all data</button>
-    <div class="note" style="margin-top:14px">${gistOn?"Cloud sync is on: your library auto-saves to your private gist and follows you across devices.":"Your data lives only in this browser, on this device. Set up cloud sync (or export backups) so you never lose progress."} Import also accepts a <b>TV Time export</b> (.html from the "TV Time Out" Chrome extension).<div style="margin-top:8px;color:var(--tx3);font-size:11.5px">Episotia v${APP_VERSION}</div></div>
-    <input type="file" id="imp" accept=".json,.html,.htm,application/json,text/html" class="hidden" onchange="importFile(this.files[0])">
+    <div class="note" style="margin-top:14px">${gistOn?"Cloud sync is on: your library auto-saves to your private gist and follows you across devices.":"Your data lives only in this browser, on this device. Set up cloud sync (or export backups) so you never lose progress."} Import also accepts a <b>TV Time data export</b> — the <b>.zip</b> from a TV Time GDPR/data request (with your full watch history &amp; dates), or the .html from the "TV Time Out" Chrome extension.<div style="margin-top:8px;color:var(--tx3);font-size:11.5px">Episotia v${APP_VERSION}</div></div>
+    <input type="file" id="imp" accept=".json,.html,.htm,.zip,.csv,application/json,text/html,application/zip" multiple class="hidden" onchange="importFiles(this.files)">
   </div>`;
   $("#modal").classList.remove("hidden");
   $("#modal").onclick = closeModal;
@@ -1420,6 +1513,178 @@ function importTvTime(html){
   save(); closeModal(); render();
   toast(added + " shows imported — syncing…");
   setTimeout(()=>syncAll(false), 800);
+}
+
+/* ---------- TV Time GDPR/data export import (.zip or loose .csv) ---------- */
+function importFiles(files){
+  if(!files || !files.length) return;
+  const arr = [].slice.call(files);
+  const zip = arr.find(f => /\.zip$/i.test(f.name));
+  if(zip){ importGdprZip(zip); return; }
+  const csvs = arr.filter(f => /\.csv$/i.test(f.name));
+  if(csvs.length){ importGdprCsvs(csvs); return; }
+  importFile(arr[0]);
+}
+let JSZIP_P = null;
+function loadJSZip(){
+  if(typeof JSZip !== "undefined") return Promise.resolve(JSZip);
+  if(JSZIP_P) return JSZIP_P;
+  JSZIP_P = new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+    s.onload = () => res(JSZip);
+    s.onerror = () => rej(new Error("jszip"));
+    document.head.appendChild(s);
+  });
+  return JSZIP_P;
+}
+const GDPR_WANT = ["followed_tv_show.csv","seen_episode_source.csv","tracking-prod-records.csv","tracking-prod-records-v2.csv","rewatched_episode.csv"];
+async function importGdprZip(file){
+  toast("Reading TV Time export…");
+  let zip;
+  try{ const JZ = await loadJSZip(); zip = await JZ.loadAsync(file); }
+  catch(e){ toast("Couldn't open that .zip (need a connection the first time)"); return; }
+  const entries = Object.keys(zip.files);
+  const parsed = {};
+  for(const w of GDPR_WANT){
+    const hit = entries.find(p => p.toLowerCase().split("/").pop() === w);
+    if(hit) parsed[w] = parseCSV(await zip.files[hit].async("string"));
+  }
+  finishGdpr(parsed);
+}
+async function importGdprCsvs(csvs){
+  toast("Reading TV Time export…");
+  const parsed = {};
+  for(const f of csvs){
+    const base = f.name.toLowerCase().split(/[\\/]/).pop();
+    if(GDPR_WANT.indexOf(base) !== -1) parsed[base] = parseCSV(await f.text());
+  }
+  finishGdpr(parsed);
+}
+function finishGdpr(parsed){
+  if(!parsed["followed_tv_show.csv"] && !parsed["tracking-prod-records-v2.csv"] && !parsed["seen_episode_source.csv"]){
+    toast("This doesn't look like a TV Time data export"); return;
+  }
+  const incoming = buildFromGdpr(parsed);
+  if(!Object.keys(incoming).length){ toast("No shows found in that export"); return; }
+  const r = mergeShows(incoming);
+  save(); closeModal(); render();
+  toast(r.added + " shows imported — syncing…");
+  setTimeout(()=>syncAll(false), 800);
+}
+function mergeShows(incoming){
+  let added = 0;
+  for(const key in incoming){
+    const inc = incoming[key], cur = state.shows[key];
+    if(!cur){ state.shows[key] = inc; added++; continue; }
+    for(const wk in inc.watched){
+      const v = inc.watched[wk];
+      if(!(wk in cur.watched) || (cur.watched[wk] <= 1 && v > 1) || v < cur.watched[wk]) cur.watched[wk] = v;
+    }
+    if(inc.rw){ // merge rewatches, dedupe by timestamp so re-imports stay idempotent
+      if(!cur.rw) cur.rw = {};
+      for(const rk in inc.rw){
+        const a = cur.rw[rk] = cur.rw[rk] || [];
+        for(const ts of inc.rw[rk]) if(a.indexOf(ts) === -1) a.push(ts);
+      }
+    }
+    if((cur.status === "not_started_yet" || !cur.status) && Object.keys(cur.watched).length) cur.status = "watching";
+  }
+  return {added};
+}
+function parseCSV(text){
+  if(text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const rows = []; let i = 0, field = "", row = [], inq = false;
+  while(i < text.length){
+    const c = text[i];
+    if(inq){
+      if(c === '"'){ if(text[i+1] === '"'){ field += '"'; i += 2; continue; } inq = false; i++; continue; }
+      field += c; i++; continue;
+    }
+    if(c === '"'){ inq = true; i++; continue; }
+    if(c === ','){ row.push(field); field = ""; i++; continue; }
+    if(c === '\r'){ i++; continue; }
+    if(c === '\n'){ row.push(field); rows.push(row); row = []; field = ""; i++; continue; }
+    field += c; i++;
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  if(!rows.length) return [];
+  const head = rows[0].map(h => h.trim());
+  const out = [];
+  for(let r = 1; r < rows.length; r++){
+    if(rows[r].length === 1 && rows[r][0] === "") continue;
+    const o = {}; for(let c = 0; c < head.length; c++) o[head[c]] = rows[r][c] !== undefined ? rows[r][c] : "";
+    out.push(o);
+  }
+  return out;
+}
+function gdprMs(s){
+  s = (s||"").trim(); if(!s) return null;
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/);
+  if(!m) return null;
+  return Date.UTC(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +m[6]);
+}
+function gdprInt(x){ const n = parseInt(x, 10); return isNaN(n) ? null : n; }
+function buildFromGdpr(files){
+  const fol = files["followed_tv_show.csv"] || [];
+  const ses = files["seen_episode_source.csv"] || [];
+  const t1  = files["tracking-prod-records.csv"] || [];
+  const t2  = files["tracking-prod-records-v2.csv"] || [];
+  const followed = {};
+  for(const r of fol) if(r.tv_show_id) followed[r.tv_show_id] = (r.tv_show_name||"").trim();
+  const name2id = {}, id2name = {};
+  const put = (nm, id) => { nm = (nm||"").trim(); if(nm && id && !(nm in name2id)) name2id[nm] = id; if(id && nm && !(id in id2name)) id2name[id] = nm; };
+  for(const r of fol) put(r.tv_show_name, r.tv_show_id);
+  for(const r of t2) put(r.series_name, r.s_id);
+  for(const r of t1) if((r.entity_type||"") === "episode") put(r.series_name, r.series_id);
+  const watch = {};
+  const add = (id, s, e, ms) => {
+    if(!id || s == null || e == null || ms == null || s < 1) return;
+    const k = id + "|" + s + "|" + e; const cur = watch[k];
+    if(cur == null || ms < cur) watch[k] = ms;
+  };
+  for(const r of t2){
+    const m = (r.gsi||"").match(/(\d{9,})/);
+    const ms = m ? (+m[1]) * 1000 : gdprMs(r.created_at);
+    add(r.s_id, gdprInt(r.season_number), gdprInt(r.episode_number), ms);
+  }
+  for(const r of ses)
+    add(name2id[(r.tv_show_name||"").trim()], gdprInt(r.episode_season_number), gdprInt(r.episode_number), gdprMs(r.created_at) || gdprMs(r.updated_at));
+  for(const r of t1){
+    if((r.entity_type||"") !== "episode") continue;
+    add(r.series_id, gdprInt(r.season_number), gdprInt(r.episode_number), gdprMs(r.watch_date) || gdprMs(r.created_at) || gdprMs(r.updated_at));
+  }
+  const later = new Set();
+  for(const r of t2) if((r.is_for_later||"") === "true" && r.s_id) later.add(r.s_id);
+  const per = {};
+  for(const k in watch){ const p = k.split("|"); (per[p[0]] || (per[p[0]] = {}))[p[1] + "-" + p[2]] = watch[k]; }
+  const ids = {}; for(const id in followed) ids[id] = 1; for(const id in per) ids[id] = 1;
+  const shows = {};
+  for(const id in ids){
+    const tvdb = parseInt(id, 10); if(isNaN(tvdb)) continue;
+    const w = per[id] || {};
+    const status = Object.keys(w).length ? "watching" : (later.has(id) ? "watch_later" : "not_started_yet");
+    shows["db" + tvdb] = {
+      key: "db" + tvdb, tvdbId: tvdb, tvmazeId: null,
+      title: id2name[id] || followed[id] || ("TVDB " + tvdb),
+      status: status, fav: false, image: null, genres: [], network: "", runtime: null,
+      premiered: null, tvStatus: "", eps: null, watched: w, seeded: true, lastSync: 0
+    };
+  }
+  // rewatches (cpt = how many extra watches)
+  for(const r of (files["rewatched_episode.csv"] || [])){
+    const id = name2id[(r.tv_show_name||"").trim()];
+    const s = gdprInt(r.episode_season_number), e = gdprInt(r.episode_number);
+    if(!id || s == null || e == null || s < 1) continue;
+    const sh = shows["db" + parseInt(id, 10)];
+    if(!sh) continue;
+    const n = Math.max(1, gdprInt(r.cpt) || 1);
+    const ts = gdprMs(r.created_at) || Date.now(), ts2 = gdprMs(r.updated_at) || ts;
+    if(!sh.rw) sh.rw = {};
+    const arr = sh.rw[s + "-" + e] = sh.rw[s + "-" + e] || [];
+    for(let i = 0; i < n; i++) arr.push(i === n-1 ? ts2 : ts);
+  }
+  return shows;
 }
 function resetAll(){
   if(!confirm("Delete ALL data on this device? Export a backup first!")) return;
