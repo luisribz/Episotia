@@ -376,9 +376,9 @@ const SEED=[];
 <script>
 "use strict";
 /* ============ Episotia — personal TV tracker ============ */
-/* v2.12.0 */
-const APP_VERSION = "2.12.0";
-const WHATS_NEW = "Friends! Turn on sharing in Settings \u2192 Friends & sharing, add friends by GitHub username, and see what they watch under the new Friends filter. Also fixes cloud-sync connect on devices with a big cloud library.";
+/* v2.14.0 */
+const APP_VERSION = "2.14.0";
+const WHATS_NEW = "Watch streaks and per-show completion bars in Stats, plus an optional calendar export of upcoming episodes (Settings \u2192 Upcoming to calendar).";
 const API = "https://api.tvmaze.com";
 const LS_KEY = "episotia.v1";
 const LS_OLD = "showtime.v1";
@@ -843,7 +843,7 @@ function feedItems(){
 }
 async function feedPush(){
   if(!state.feed || !state.feed.on || !state.gist || !state.gist.token) return;
-  const body = JSON.stringify({ name: state.feed.name || "Anonymous", updatedAt: Date.now(), items: feedItems() });
+  const body = JSON.stringify({ name: state.feed.name || "Anonymous", updatedAt: Date.now(), items: feedItems(), comments: (state.comments||[]).slice(0,30) });
   try{
     if(!state.feed.id){
       const g = await gistApi("POST","/gists",{ description:"Episotia activity feed", public:true, files:{ [FEED_FILE]:{ content: body } } });
@@ -853,6 +853,47 @@ async function feedPush(){
       await gistApi("PATCH","/gists/"+state.feed.id, { files: { [FEED_FILE]: { content: body } } });
     }
   }catch(e){}
+}
+function cmtMatch(c, sh, s, n){
+  if(c.s !== s || c.n !== n) return false;
+  if(c.id && sh.tvmazeId) return c.id === sh.tvmazeId;
+  return (c.show||"").toLowerCase() === (sh.title||"").toLowerCase();
+}
+function addComment(key, s, n){
+  const el = document.getElementById("cmt");
+  const text = ((el && el.value) || "").trim().slice(0, 280);
+  if(!text) return;
+  const sh = state.shows[key];
+  state.comments = state.comments || [];
+  state.comments.unshift({ id: sh.tvmazeId || null, show: sh.title, s, n, ts: Date.now(), text });
+  state.comments = state.comments.slice(0, 100);
+  save();
+  renderEpisode(key, s, n);
+  if(!(state.feed && state.feed.on)) toast("Saved — turn on sharing so friends can see it", 3800);
+}
+function removeComment(ts){
+  state.comments = (state.comments||[]).filter(c => c.ts !== ts);
+  save();
+  if(epCtx) renderEpisode(epCtx.key, epCtx.s, epCtx.n);
+}
+function epCommentsHtml(sh, s, n, key){
+  const mine = (state.comments||[]).filter(c => cmtMatch(c, sh, s, n)).map(c => ({who:"You", own:true, ts:c.ts, text:c.text}));
+  const theirs = (friendsCache.comments||[]).filter(c => cmtMatch(c, sh, s, n));
+  const all = mine.concat(theirs).sort((a,b)=>b.ts-a.ts);
+  let h = `<h2 class="sec" style="margin-top:20px">Comments</h2>`;
+  h += all.map(c => `<div class="hrow" style="align-items:flex-start">
+    <div class="hinfo">
+      <div class="ht" style="color:var(--gold);font-size:12.5px">${esc(c.who)} <span style="color:var(--tx3);font-weight:600">· ${agoStr(c.ts)}</span></div>
+      <div style="font-size:13.5px;margin-top:3px;white-space:normal;line-height:1.5">${esc(c.text)}</div>
+    </div>
+    ${c.own?`<button class="unmark" onclick="removeComment(${c.ts})" aria-label="Delete">${I.x}</button>`:""}
+  </div>`).join("") || `<div class="epmeta">No comments yet — be the first.</div>`;
+  h += `<div style="display:flex;gap:8px;margin-top:10px">
+    <input id="cmt" class="minput" style="margin:0;flex:1" maxlength="280" placeholder="Write a comment…" onkeydown="if(event.key==='Enter')addComment('${key}',${s},${n})">
+    <button class="abtn primary" style="flex:0 0 auto" onclick="addComment('${key}',${s},${n})">Post</button>
+  </div>`;
+  if(!(state.feed && state.feed.on)) h += `<div class="epmeta" style="margin-top:8px">Friends only see your comments after you turn on sharing (Settings → Friends &amp; sharing).</div>`;
+  return h;
 }
 function toggleShare(){
   if(state.feed && state.feed.on){
@@ -910,10 +951,10 @@ function openFriends(){
   $("#modal").classList.remove("hidden");
   $("#modal").onclick = closeModal;
 }
-let friendsCache = {ts:0, rows:[], loading:false};
+let friendsCache = {ts:0, rows:[], comments:[], loading:false};
 async function loadFriendFeeds(){
   friendsCache.loading = true;
-  const rows = [];
+  const rows = [], cms = [];
   await Promise.all((state.friends||[]).map(async f => {
     try{
       const r = await fetch("https://api.github.com/gists/"+f.id);
@@ -925,10 +966,15 @@ async function loadFriendFeeds(){
       if(file.truncated && file.raw_url){ const rr = await fetch(file.raw_url); if(rr.ok) content = await rr.text(); }
       const d = JSON.parse(content||"{}");
       for(const it of (d.items||[])) rows.push({ who: d.name || f.u, ts: it.ts, show: it.show, s: it.s, n: it.n, rw: !!it.rw });
+      for(const c of (d.comments||[])){
+        const cm = { who: d.name || f.u, id: c.id || null, show: c.show, s: c.s, n: c.n, ts: c.ts, text: c.text };
+        cms.push(cm);
+        rows.push({ who: cm.who, ts: cm.ts, show: cm.show, s: cm.s, n: cm.n, comment: cm.text });
+      }
     }catch(e){}
   }));
   rows.sort((a,b)=>b.ts-a.ts);
-  friendsCache = {ts: Date.now(), rows: rows.slice(0,100), loading:false};
+  friendsCache = {ts: Date.now(), rows: rows.slice(0,100), comments: cms, loading:false};
   if(tab==="towatch" && twFilter==="friends") render();
 }
 function viewFriends(){
@@ -939,10 +985,12 @@ function viewFriends(){
   if(!friendsCache.rows.length) return `<div class="empty"><div class="big">👥</div>No activity from your friends yet.<br>They need sharing turned on too.</div>`;
   let h = "";
   for(const r of friendsCache.rows){
-    h += `<div class="hrow">
+    h += `<div class="hrow"${r.comment?` style="align-items:flex-start"`:""}>
       <div class="hinfo">
         <div class="ht" style="color:var(--gold)">${esc(r.who)}</div>
-        <div class="hs">${r.rw?`<span class="rwbadge">↻</span> `:""}${esc(r.show)} · <span class="epcode">${epCode(r.s,r.n)}</span></div>
+        ${r.comment
+          ? `<div class="hs" style="white-space:normal;line-height:1.5">💬 ${esc(r.comment)}<br><span class="epcode">${epCode(r.s,r.n)}</span> · ${esc(r.show)}</div>`
+          : `<div class="hs">${r.rw?`<span class="rwbadge">↻</span> `:""}${esc(r.show)} · <span class="epcode">${epCode(r.s,r.n)}</span></div>`}
       </div>
       <div class="hd">${agoStr(r.ts)}</div>
     </div>`;
@@ -1080,6 +1128,56 @@ function rewatchAll(sh){
   }
   save();
   registerUndo(sh.key, keys, `↻ ${keys.length} episodes rewatched`, "rewatch");
+}
+
+/* ---------- streaks ---------- */
+function streaks(){
+  const idx = new Set();
+  for(const sh of allShows()){
+    for(const v of Object.values(sh.watched)) if(v>1) idx.add(Math.floor((v - new Date(v).getTimezoneOffset()*60000)/86400000));
+    if(sh.rw) for(const arr of Object.values(sh.rw)) for(const v of arr) if(v>1) idx.add(Math.floor((v - new Date(v).getTimezoneOffset()*60000)/86400000));
+  }
+  const days = [...idx].sort((a,b)=>a-b);
+  let longest = 0, run = 0, prev = null;
+  for(const d of days){ run = (prev !== null && d === prev + 1) ? run + 1 : 1; if(run > longest) longest = run; prev = d; }
+  const now = Date.now();
+  const today = Math.floor((now - new Date(now).getTimezoneOffset()*60000)/86400000);
+  let cur = 0, d = idx.has(today) ? today : (idx.has(today-1) ? today-1 : null);
+  if(d !== null) while(idx.has(d)){ cur++; d--; }
+  return {cur, longest};
+}
+
+/* ---------- calendar (.ics) export ---------- */
+function icsEsc(s){ return String(s).replace(/([,;\\])/g, "\\$1").replace(/\r?\n/g, " "); }
+function exportIcs(){
+  const t = todayStr();
+  const horizon = 120*86400000;
+  const lines = ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Episotia//EN","CALSCALE:GREGORIAN","X-WR-CALNAME:Episotia upcoming"];
+  let n = 0;
+  for(const sh of allShows()){
+    if(!isFollowed(sh)) continue;
+    for(const e of futureList(sh)){
+      if(new Date(e.a+"T12:00:00") - new Date(t+"T12:00:00") > horizon) continue;
+      const d2 = new Date(e.a+"T12:00:00"); d2.setDate(d2.getDate()+1);
+      const dend = d2.getFullYear() + String(d2.getMonth()+1).padStart(2,"0") + String(d2.getDate()).padStart(2,"0");
+      lines.push("BEGIN:VEVENT",
+        "UID:episotia-" + (sh.tvmazeId || sh.key) + "-" + e.s + "-" + e.n,
+        "DTSTART;VALUE=DATE:" + e.a.replace(/-/g,""),
+        "DTEND;VALUE=DATE:" + dend,
+        "SUMMARY:" + icsEsc(sh.title + " " + epCode(e.s,e.n) + (e.t ? " — " + e.t : "")),
+        "END:VEVENT");
+      n++;
+    }
+  }
+  lines.push("END:VCALENDAR");
+  if(!n){ toast("No scheduled episodes in the next 120 days"); return; }
+  const blob = new Blob([lines.join("\r\n")], {type:"text/calendar"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "episotia-upcoming.ics";
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+  toast(n + " episodes exported — open the file to add them to your calendar", 4000);
 }
 
 /* ---------- rendering ---------- */
@@ -1302,6 +1400,7 @@ function viewStats(){
     <div class="stat-card"><div class="v">${shows.length}</div><div class="l">Shows tracked</div></div>
     <div class="stat-card"><div class="v">${newThisMonth}</div><div class="l">Eps this month</div></div>
     ${rws?`<div class="stat-card"><div class="v">${rws.toLocaleString()}</div><div class="l">Rewatches</div></div>`:""}
+    ${(()=>{const st=streaks();return `<div class="stat-card"><div class="v">${st.cur}<span style="font-size:15px">d</span></div><div class="l">Streak · best ${st.longest}d</div></div>`;})()}
   </div>
   <h2 class="sec">By status</h2>
   ${Object.entries(STATUSES).map(([k,v])=>{
@@ -1326,6 +1425,14 @@ function viewStats(){
   })()}
   <h2 class="sec">Most watched</h2>
   ${topShows.map(([t,n])=>`<div class="bar-row"><div class="bl">${esc(t)}</div><div class="bt"><i style="width:${n/maxS*100}%"></i></div><div class="bv">${n}</div></div>`).join("") || '<div class="empty">Sync first to see this.</div>'}
+  <h2 class="sec">Completion</h2>
+  ${(()=>{
+    const rows = shows.filter(s=>s.status==="watching" && s.eps && totalRegular(s)>0)
+      .map(s=>[s.title, Math.round(watchedCount(s)/totalRegular(s)*100)])
+      .sort((a,b)=>b[1]-a[1]).slice(0,8);
+    if(!rows.length) return '<div class="empty">Nothing in progress right now.</div>';
+    return rows.map(([tt,p])=>`<div class="bar-row"><div class="bl">${esc(tt)}</div><div class="bt"><i style="width:${p}%"></i></div><div class="bv">${p}%</div></div>`).join("");
+  })()}
   <h2 class="sec">Top genres</h2>
   ${topGenres.map(([g,n])=>`<div class="bar-row"><div class="bl">${esc(g)}</div><div class="bt"><i style="width:${n/maxG*100}%"></i></div><div class="bv">${n}</div></div>`).join("") || '<div class="empty">Sync first to see this.</div>'}`;
 }
@@ -1502,11 +1609,16 @@ function quickWatch(key){
 }
 
 /* ---------- episode detail ---------- */
-let epCache = null;
+let epCache = null, epCtx = null;
 async function openEpisode(key, s, n){
   const sh = state.shows[key];
   if(!sh) return;
   epCache = null;
+  epCtx = {key, s, n};
+  if((state.friends||[]).length && Date.now() - friendsCache.ts > 5*60000 && !friendsCache.loading)
+    loadFriendFeeds().then(() => {
+      if(epCtx && epCtx.key===key && epCtx.s===s && epCtx.n===n && !$("#modal").classList.contains("hidden")) renderEpisode(key, s, n);
+    });
   const local = sh.eps ? sh.eps.find(e=>e.s===s&&e.n===n) : null;
   $("#modal").innerHTML = `<div class="mbox" onclick="event.stopPropagation()">
     <h3>${esc((local&&local.t)||epCode(s,n))}</h3>
@@ -1545,6 +1657,7 @@ function renderEpisode(key, s, n){
       ${d&&d.url?`<button class="abtn" onclick="window.open('${esc(d.url)}','_blank')">TVmaze</button>`:""}
       <button class="abtn" onclick="window.open(redditUrl(state.shows['${key}'],${s},${n}),'_blank')">Reddit</button>
     </div>
+    ${epCommentsHtml(sh, s, n, key)}
   </div>`;
 }
 function toggleEpModal(key, s, n){
@@ -1666,6 +1779,7 @@ function openSettings(){
       : `<button class="mrow" onclick="openSyncSetup()">${I.cloud}Set up cloud sync<span class="md">recommended</span></button>`}
     <button class="mrow" onclick="openFriends()">${I.chat}Friends &amp; sharing<span class="md">${(state.friends&&state.friends.length)?state.friends.length+" friend"+(state.friends.length>1?"s":""):((state.feed&&state.feed.on)?"sharing on":"off")} ›</span></button>
     <button class="mrow" onclick="exportBackup()">${I.down}Export backup (JSON)<span class="md">${kb} KB</span></button>
+    <button class="mrow" onclick="exportIcs()">${I.down}Upcoming to calendar (.ics)<span class="md">next 120 days</span></button>
     <button class="mrow" onclick="document.getElementById('imp').click()">${I.up}Import backup / TV Time export<span class="md">.zip / .json / .html</span></button>
     ${unmatchedList().length?`<button class="mrow" onclick="openUnmatched()">${I.search}Fix unmatched shows<span class="md">${unmatchedList().length}</span></button>`:""}
     <button class="mrow" onclick="closeModal();syncAll(true)">${I.refresh}Full re-sync (all shows)</button>
