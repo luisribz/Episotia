@@ -105,7 +105,7 @@ nav .badge{
   border-radius:9px;padding:1.5px 5.5px;box-shadow:0 0 0 2.5px var(--bg);
 }
 
-main{max-width:640px;margin:0 auto;padding:16px 16px 30px;animation:fadein .18s ease}
+main{max-width:640px;margin:0 auto;padding:16px 16px 30px;animation:fadein .18s ease;min-height:calc(100dvh - 145px - var(--sat) - var(--sab))}
 @keyframes fadein{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 h2.sec{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--gold);margin:22px 2px 10px;font-weight:800}
 .empty{text-align:center;color:var(--tx3);padding:64px 24px;font-size:14px;line-height:1.7}
@@ -375,9 +375,9 @@ const SEED=[];
 <script>
 "use strict";
 /* ============ Episotia — personal TV tracker ============ */
-/* v2.10.0 */
-const APP_VERSION = "2.10.0";
-const WHATS_NEW = "Tap a search result for full show details, filter chips stay visible while you scroll, the first tab is now Watching, and imports no longer duplicate shows, reset statuses, or miss TV Time rewatches.";
+/* v2.10.1 */
+const APP_VERSION = "2.10.1";
+const WHATS_NEW = "TV Time imports now respect unfollowed/archived shows — old watched shows land in Stopped instead of flooding Watching. Plus everything from 2.10.0: tappable search results, sticky filter chips, rewatch import.";
 const API = "https://api.tvmaze.com";
 const LS_KEY = "episotia.v1";
 const LS_OLD = "showtime.v1";
@@ -1699,8 +1699,13 @@ function buildFromGdpr(files){
   const ses = files["seen_episode_source.csv"] || [];
   const t1  = files["tracking-prod-records.csv"] || [];
   const t2  = files["tracking-prod-records-v2.csv"] || [];
-  const followed = {};
-  for(const r of fol) if(r.tv_show_id) followed[r.tv_show_id] = (r.tv_show_name||"").trim();
+  const followed = {}, activeFollow = {}, archivedF = {};
+  for(const r of fol){
+    if(!r.tv_show_id) continue;
+    followed[r.tv_show_id] = (r.tv_show_name||"").trim();
+    if((r.archived||"") === "1") archivedF[r.tv_show_id] = true;
+    else if((r.active||"") !== "0") activeFollow[r.tv_show_id] = true;   // no active column (old exports) = treat as active
+  }
   const name2id = {}, id2name = {};
   const put = (nm, id) => { nm = (nm||"").trim(); if(nm && id && !(nm in name2id)) name2id[nm] = id; if(id && nm && !(id in id2name)) id2name[id] = nm; };
   for(const r of fol) put(r.tv_show_name, r.tv_show_id);
@@ -1736,7 +1741,11 @@ function buildFromGdpr(files){
   for(const id in ids){
     const tvdb = parseInt(id, 10); if(isNaN(tvdb)) continue;
     const w = per[id] || {};
-    const status = Object.keys(w).length ? "watching" : (later.has(id) ? "watch_later" : "not_started_yet");
+    // TV Time flags: active=0 = unfollowed, archived=1 = archived — either way the user stopped this show.
+    // Watched-but-unfollowed shows keep their history (stats/History intact) but land in Stopped, not Watching.
+    const status = (archivedF[id] || !activeFollow[id]) ? "stopped"
+      : Object.keys(w).length ? "watching"
+      : (later.has(id) ? "watch_later" : "not_started_yet");
     shows["db" + tvdb] = {
       key: "db" + tvdb, tvdbId: tvdb, tvmazeId: null,
       title: id2name[id] || followed[id] || ("TVDB " + tvdb),
@@ -1823,7 +1832,15 @@ if(typeof document!=="undefined" && document.addEventListener){
 load();
 applyTheme();
 versionCheck();
-document.querySelectorAll("nav button").forEach(b => b.onclick = () => { tab = b.dataset.tab; window.scrollTo(0,0); render(); });
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  tab = b.dataset.tab; window.scrollTo(0,0); render();
+});
+// iOS home-screen apps can leave the layout shifted up after the keyboard closes — nudge it back
+if(window.addEventListener) window.addEventListener("focusout", () => setTimeout(() => {
+  const ae = document.activeElement;
+  if(!ae || (ae.tagName!=="INPUT" && ae.tagName!=="TEXTAREA")) window.scrollTo(0, window.scrollY);
+}, 80));
 $("#btn-sync").onclick = () => syncAll(false);
 $("#btn-settings").onclick = openSettings;
 render();
