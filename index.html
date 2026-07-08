@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-title" content="Episotia">
 <title>Episotia</title>
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="apple-touch-icon-v4.png">
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192-v4.png">
+<link rel="apple-touch-icon" href="apple-touch-icon-v5.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192-v5.png">
 <style>
 :root{
   --bg:#0a0c11; --bg2:#12151e; --bg3:#1a1e2a; --bg4:#222738; --line:#242a3a; --line2:#303752;
@@ -304,6 +304,13 @@ h2.sec{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--
   max-width:calc(100vw - 32px);
 }
 @keyframes toastin{from{transform:translate(-50%,12px);opacity:0}to{transform:translate(-50%,0);opacity:1}}
+.celebrate{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.celebrate .cbox{background:var(--bg3);border:1px solid var(--line);border-radius:20px;padding:22px 30px;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.45);animation:celebpop 1.9s cubic-bezier(.2,.8,.25,1) forwards}
+.celebrate .cbig{font-size:44px;line-height:1;margin-bottom:8px;animation:celebspin .7s cubic-bezier(.2,.8,.25,1)}
+.celebrate .ctxt{font-weight:800;font-size:16px}
+.celebrate .csub{font-size:13px;color:var(--tx2);margin-top:3px}
+@keyframes celebpop{0%{transform:scale(.6);opacity:0}12%{transform:scale(1.04);opacity:1}18%{transform:scale(1)}80%{transform:scale(1);opacity:1}100%{transform:scale(.96);opacity:0}}
+@keyframes celebspin{from{transform:scale(.2) rotate(-14deg)}to{transform:none}}
 .toast .tmsg{overflow:hidden;text-overflow:ellipsis}
 .toast button{color:var(--gold);font-weight:800;font-size:13px;letter-spacing:.4px;text-transform:uppercase;flex-shrink:0}
 .note{background:var(--bg2);border:1px solid var(--line);border-radius:var(--rad);padding:13px 15px;font-size:13px;color:var(--tx2);margin-bottom:13px;line-height:1.6}
@@ -314,7 +321,7 @@ html[data-theme="light"] .note b{color:var(--acc)}
 <body>
 <header>
   <div class="logo">
-    <div class="logo-mark"><img src="icon-192-v4.png" alt=""></div>
+    <div class="logo-mark"><img src="icon-192-v5.png" alt=""></div>
     <h1>Episotia</h1>
   </div>
   <div id="sync-pill"><div class="spin"></div><span id="sync-txt"></span></div>
@@ -364,9 +371,9 @@ const SEED=[];
 <script>
 "use strict";
 /* ============ Episotia — personal TV tracker ============ */
-/* v2.15.0 */
-const APP_VERSION = "2.15.0";
-const WHATS_NEW = "New logo! The header wears it already \u2014 to get the new home-screen icon, remove the shortcut and re-add the app from your browser.";
+/* v2.16.0 */
+const APP_VERSION = "2.16.0";
+const WHATS_NEW = "New logo \ud83c\udfa8, live search suggestions as you type, and a little celebration when you finish a season or a series. (Home-screen icon: remove and re-add the app to refresh it.)";
 const API = "https://api.tvmaze.com";
 const LS_KEY = "episotia.v1";
 const LS_OLD = "showtime.v1";
@@ -1075,6 +1082,26 @@ function markWatched(sh, e, on=true){
   if(on) sh.watched[wkey(e)] = Date.now(); else delete sh.watched[wkey(e)];
   autoStatus(sh, true);
   save();
+  if(on) maybeCelebrate(sh, e);
+}
+function maybeCelebrate(sh, e){
+  // CSS-only overlay, pointer-events:none, self-removing — can't block or slow anything
+  try{
+    if(!sh.eps || !e) return;
+    const season = sh.eps.filter(x=>x.s===e.s);
+    if(!season.length || !season.every(x=>sh.watched[wkey(x)])) return;   // future eps in data keep this false
+    const allDone = sh.eps.filter(x=>x.s>=1).every(x=>sh.watched[wkey(x)]);
+    if(allDone && sh.tvStatus==="Ended") showCelebrate("🏆","You're all set!",`${sh.title} — series complete`);
+    else showCelebrate("🎉",`Season ${e.s} complete!`, sh.title);
+  }catch(err){}
+}
+function showCelebrate(big, txt, sub){
+  const old = document.querySelector(".celebrate"); if(old) old.remove();
+  const el = document.createElement("div");
+  el.className = "celebrate";
+  el.innerHTML = `<div class="cbox"><div class="cbig">${big}</div><div class="ctxt">${esc(txt)}</div>${sub?`<div class="csub">${esc(sub)}</div>`:""}</div>`;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(), 2000);
 }
 function markSeason(sh, season){
   const t = todayStr(), added = [];
@@ -1085,6 +1112,7 @@ function markSeason(sh, season){
   }
   autoStatus(sh, true); save();
   registerUndo(sh.key, added, `Season ${season}: ${added.length} marked ✓`);
+  if(added.length) maybeCelebrate(sh, {s:season});
 }
 function markAll(sh){
   const added = [];
@@ -1439,11 +1467,16 @@ function viewStats(){
 function viewSearch(){
   let h = `<div class="searchbar">
     <div class="inputwrap">
-      <input id="q" placeholder="Search any show…" value="${esc(lastSearchQ)}" onkeydown="if(event.key==='Enter')doSearch()" oninput="lastSearchQ=this.value;const b=this.nextElementSibling;if(b)b.style.display=this.value?'flex':'none'">
+      <input id="q" placeholder="Search any show…" value="${esc(lastSearchQ)}" onkeydown="if(event.key==='Enter')doSearch()" oninput="lastSearchQ=this.value;qLive();const b=this.nextElementSibling;if(b)b.style.display=this.value?'flex':'none'">
       <button class="clearbtn" style="display:${lastSearchQ?"flex":"none"}" onclick="lastSearchQ='';searchResults=[];render();const i=document.getElementById('q');if(i)i.focus()">✕</button>
     </div>
     <button class="icon-btn" onclick="doSearch()">${I.search}</button>
   </div>`;
+  h += `<div id="sres">${searchResultsHtml()}</div>`;
+  return h;
+}
+function searchResultsHtml(){
+  let h = "";
   if(!searchResults.length) h += `<div class="empty"><div class="big">🔍</div>Search TVmaze and add shows<br>to your library.</div>`;
   for(const r of searchResults){
     const d = r.show;
@@ -1606,6 +1639,7 @@ function quickWatch(key){
   sh.watched[k] = Date.now();
   autoStatus(sh, true); save();
   registerUndo(sh.key, [k], `✓ ${sh.title} ${epCode(e.s,e.n)}`);
+  maybeCelebrate(sh, e);
   render();
 }
 
@@ -1677,16 +1711,28 @@ function rewatchEpModal(key, s, n){
 }
 
 /* ---------- search / add ---------- */
-async function doSearch(){
+let sugTimer = null, searchToken = 0;
+function qLive(){
+  // live suggestions: debounced so we only hit TVmaze once you pause typing
+  clearTimeout(sugTimer);
+  const q = $("#q") ? $("#q").value.trim() : "";
+  if(q.length < 3) return;
+  sugTimer = setTimeout(()=>{ const el = $("#q"); if(el && el.value.trim()===q) doSearch(true); }, 450);
+}
+async function doSearch(live){
   const q = $("#q").value.trim();
   if(!q) return;
   lastSearchQ = q;
-  toast("Searching…",1200);
+  const token = ++searchToken;
+  if(!live) toast("Searching…",1200);
   try{
-    searchResults = await apiGet("/search/shows?q="+encodeURIComponent(q)) || [];
-    render();
-
-  }catch(e){ toast("Network error"); }
+    const res = await apiGet("/search/shows?q="+encodeURIComponent(q)) || [];
+    if(token !== searchToken) return;                 // a newer search superseded this one
+    searchResults = res;
+    const el = document.getElementById("sres");
+    if(live && el) el.innerHTML = searchResultsHtml();   // update only the list — never the input while typing
+    else render();
+  }catch(e){ if(!live) toast("Network error"); }
 }
 async function addShow(tvmazeId){
   const r = searchResults.find(x=>x.show.id===tvmazeId);
