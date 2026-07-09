@@ -747,6 +747,11 @@ let gistPushTimer = null, applyingRemote = false;
 function syncedState(){
   const c = JSON.parse(JSON.stringify(state));
   delete c.gist;                       // never let the token leave the device via backups/gist
+  // v2.17.0 sync slimming: episode metadata was ~91% of a 1.6MB payload, blowing past
+  // GitHub's 1MB gist limit (truncation → raw_url CDN staleness → "couldn't read cloud
+  // data" + device drift). eps never sync now — each device refetches from TVmaze/TMDB;
+  // watched marks, statuses and everything personal still sync (~250KB).
+  for(const k in (c.shows||{})) c.shows[k].eps = null;
   return c;
 }
 async function gistApi(method, path, body){
@@ -802,6 +807,15 @@ async function gistPull(){
     if((remote.updatedAt||0) > (state.updatedAt||0)){
       applyingRemote = true;
       const gist = state.gist;
+      // graft local episode metadata back in (eps don't travel in the gist since v2.17.0)
+      let needEps = false;
+      for(const k in (remote.shows||{})){
+        const loc = state.shows && state.shows[k];
+        if(!remote.shows[k].eps){
+          if(loc && loc.eps){ remote.shows[k].eps = loc.eps; remote.shows[k].lastSync = loc.lastSync || 0; }
+          else if(!remote.shows[k].lookupFailed) needEps = true;   // new show from the other device — fetch its episodes (unmatched shows can't be fetched, skip)
+        }
+      }
       state = remote;
       state.gist = gist;
       state.settings = state.settings || {theme:"system"};
@@ -809,6 +823,7 @@ async function gistPull(){
       applyingRemote = false;
       applyTheme(); render();
       toast("Synced from cloud ☁", 2000);
+      if(needEps) setTimeout(()=>syncAll(false), 600);
     } else if((state.updatedAt||0) > (remote.updatedAt||0)){
       scheduleGistPush();
     }
@@ -855,6 +870,10 @@ async function connectGist(){
         if(confirm(`Found cloud data (${rn} shows). Load it on this device?\n\nOK = use cloud data here\nCancel = overwrite cloud with this device (${ln} shows)`)){
           applyingRemote = true;
           const gist = state.gist;
+          for(const k in remote.shows){ // graft local eps (they don't travel in the gist)
+            const loc = state.shows && state.shows[k];
+            if(!remote.shows[k].eps && loc && loc.eps){ remote.shows[k].eps = loc.eps; remote.shows[k].lastSync = loc.lastSync||0; }
+          }
           state = remote; state.gist = gist;
           state.settings = state.settings || {theme:"system"};
           applyingRemote = false;
@@ -1929,7 +1948,8 @@ function openSettings(){
 }
 function closeModal(){ $("#modal").classList.add("hidden"); }
 function exportBackup(){
-  const blob = new Blob([JSON.stringify(syncedState())], {type:"application/json"});
+  const full = JSON.parse(JSON.stringify(state)); delete full.gist;  // backups keep eps (offline-restorable), only the token is stripped
+  const blob = new Blob([JSON.stringify(full)], {type:"application/json"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = "episotia-backup-"+todayStr()+".json";
