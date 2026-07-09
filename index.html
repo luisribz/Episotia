@@ -811,6 +811,11 @@ async function gistPull(){
       let needEps = false;
       for(const k in (remote.shows||{})){
         const loc = state.shows && state.shows[k];
+        if(loc){
+          // never let a device that doesn't know about a TMDB link / cover erase it (last-writer-wins is per-state, not per-show)
+          if(!remote.shows[k].tmdbId && loc.tmdbId && !remote.shows[k].tvmazeId){ remote.shows[k].tmdbId = loc.tmdbId; delete remote.shows[k].lookupFailed; }
+          if(!remote.shows[k].image && loc.image) remote.shows[k].image = loc.image;
+        }
         if(!remote.shows[k].eps){
           if(loc && loc.eps){ remote.shows[k].eps = loc.eps; remote.shows[k].lastSync = loc.lastSync || 0; }
           else if(!remote.shows[k].lookupFailed) needEps = true;   // new show from the other device — fetch its episodes (unmatched shows can't be fetched, skip)
@@ -1562,7 +1567,7 @@ function searchResultsHtml(){
   if(!searchResults.length) h += `<div class="empty"><div class="big">🔍</div>Search TVmaze and add shows<br>to your library.</div>`;
   for(const r of searchResults){
     const d = r.show;
-    const exists = allShows().some(s=>s.tvmazeId===d.id) || searchAdded[d.id];
+    const exists = allShows().some(s=> s.tvmazeId===d.id || (d.tmdbId && s.tmdbId===d.tmdbId)) || searchAdded[d.id];
     h += `<div class="card">
       <div style="display:flex;gap:13px;align-items:center;flex:1;min-width:0" onclick="openSearchShow(${d.id})">
         ${d.image?`<img class="poster" src="${esc(d.image.medium)}" alt="">`:`<div class="poster ph">${I.tv}</div>`}
@@ -1885,7 +1890,7 @@ function renderPreview(d, eps){
     d.averageRuntime?d.averageRuntime+" min":""
   ].filter(Boolean).join(" · ");
   const sum = stripHtml(d.summary);
-  const exists = allShows().some(s=>s.tvmazeId===d.id) || searchAdded[d.id];
+  const exists = allShows().some(s=> s.tvmazeId===d.id || (d.tmdbId && s.tmdbId===d.tmdbId)) || searchAdded[d.id];
   let seasons = "";
   if(eps===null) seasons = `<div class="note">Loading episodes…</div>`;
   else if(eps.length){
