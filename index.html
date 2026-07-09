@@ -1067,7 +1067,14 @@ async function findMatch(key){
   const sh = state.shows[key];
   matchKey = key;
   toast("Searching…", 1200);
-  try{ matchResults = await apiGet("/search/shows?q="+encodeURIComponent(sh.title)) || []; }
+  try{
+    matchResults = await apiGet("/search/shows?q="+encodeURIComponent(sh.title)) || [];
+    if(!matchResults.length){
+      // not on TVmaze — try TMDB (same fallback as the Search tab)
+      const t = await tmdbGet("/search/tv?include_adult=false&query="+encodeURIComponent(sh.title));
+      if(t && t.results && t.results.length) matchResults = t.results.slice(0,15).map(x=>({show:tmdbShowAdapt(x)}));
+    }
+  }
   catch(e){ toast("Network error — try again"); return; }
   $("#modal").innerHTML = `<div class="mbox" onclick="event.stopPropagation()">
     <h3>Match “${esc(sh.title)}”</h3>
@@ -1084,6 +1091,19 @@ async function linkMatch(i){
   const sh = state.shows[matchKey];
   const d = matchResults[i] && matchResults[i].show;
   if(!sh || !d) return;
+  if(d.tmdbId){
+    // link to TMDB instead: same show object, TMDB data path from here on
+    sh.tmdbId = d.tmdbId; sh.tvmazeId = null;
+    sh.title = d.name || sh.title;
+    sh.image = (d.image && d.image.medium) || sh.image;
+    sh.premiered = d.premiered || sh.premiered;
+    delete sh.lookupFailed;
+    save();
+    toast(`Linked to ${d.name} (TMDB) — loading episodes…`);
+    try{ await syncTmdbShow(sh); save(); }catch(e){}
+    openUnmatched(); render();
+    return;
+  }
   applyMeta(sh, d);
   delete sh.lookupFailed;
   save();
