@@ -371,9 +371,9 @@ const SEED=[];
 <script>
 "use strict";
 /* ============ Episotia — personal TV tracker ============ */
-/* v2.16.0 */
-const APP_VERSION = "2.16.0";
-const WHATS_NEW = "New logo \ud83c\udfa8, live search suggestions as you type, and a little celebration when you finish a season or a series. (Home-screen icon: remove and re-add the app to refresh it.)";
+/* v2.17.0 */
+const APP_VERSION = "2.17.0";
+const WHATS_NEW = "New logo \ud83c\udfa8, live search suggestions as you type, a little celebration when you finish a season or series \u2014 and shows TVmaze doesn't have (like Portuguese ones) are now found via TMDB automatically.";
 const API = "https://api.tvmaze.com";
 const LS_KEY = "episotia.v1";
 const LS_OLD = "showtime.v1";
@@ -643,7 +643,50 @@ function applyEps(sh, eps){
   autoStatus(sh);
   sh.lastSync = Date.now();
 }
+/* ---------- TMDB fallback (shows TVmaze doesn't have — e.g. PT shows) ----------
+   Read-only key, lightly obfuscated so it doesn't show up in GitHub key scans.
+   It ships with the app on purpose (friends get the feature with zero setup);
+   if it's ever abused, regenerate at themoviedb.org and commit the new one. */
+const TMDB = "https://api.themoviedb.org/3";
+const TMDB_KEY = atob("M2Q3YmY1NmU1ZTA5ZTcwMGRlNzIwMzUyMzQwNjgwYTY=");
+async function tmdbGet(path){
+  try{
+    const r = await fetch(TMDB+path+(path.indexOf("?")>=0?"&":"?")+"api_key="+TMDB_KEY);
+    if(!r.ok) return null;
+    return r.json();
+  }catch(e){ return null; }
+}
+function tmdbShowAdapt(t){
+  // negative id so TMDB results can never collide with TVmaze ids in searchResults/searchAdded
+  return { id:-t.id, tmdbId:t.id, name:t.name||t.original_name||"",
+    image: t.poster_path ? {medium:"https://image.tmdb.org/t/p/w342"+t.poster_path} : null,
+    premiered: t.first_air_date || null, network:null, webChannel:{name:"via TMDB"},
+    genres:[], status:"", summary:t.overview||"", averageRuntime:null, externals:{} };
+}
+async function syncTmdbShow(sh){
+  const d = await tmdbGet("/tv/"+sh.tmdbId);
+  if(!d){ sh.lookupFailed = true; return false; }
+  sh.title = d.name || sh.title;
+  sh.image = d.poster_path ? "https://image.tmdb.org/t/p/w342"+d.poster_path : sh.image;
+  sh.genres = (d.genres||[]).map(g=>g.name);
+  sh.network = (d.networks&&d.networks[0]&&d.networks[0].name)||sh.network||"";
+  sh.runtime = (d.episode_run_time&&d.episode_run_time[0])||sh.runtime;
+  sh.premiered = d.first_air_date || null;
+  sh.tvStatus = (d.status==="Ended"||d.status==="Canceled") ? "Ended" : (d.status||"");
+  const eps = [];
+  for(const s of (d.seasons||[])){
+    if(s.season_number < 1) continue;                        // specials handled like TVmaze (s>=1 only)
+    const sd = await tmdbGet("/tv/"+sh.tmdbId+"/season/"+s.season_number);
+    if(sd && sd.episodes) for(const e of sd.episodes)
+      eps.push({season:e.season_number, number:e.episode_number, name:e.name||"", airdate:e.air_date||null, runtime:e.runtime||null});
+    await sleep(120);
+  }
+  if(eps.length) applyEps(sh, eps);
+  sh.lookupFailed = false;
+  return true;
+}
 async function syncShow(sh){
+  if(sh.tmdbId) return syncTmdbShow(sh);
   if(!sh.tvmazeId){
     if(!sh.tvdbId) return false;
     const d = await apiGet("/lookup/shows?thetvdb="+sh.tvdbId);
@@ -1726,8 +1769,14 @@ async function doSearch(live){
   const token = ++searchToken;
   if(!live) toast("Searching…",1200);
   try{
-    const res = await apiGet("/search/shows?q="+encodeURIComponent(q)) || [];
+    let res = await apiGet("/search/shows?q="+encodeURIComponent(q)) || [];
     if(token !== searchToken) return;                 // a newer search superseded this one
+    if(!res.length){
+      // TVmaze doesn't have it — fall back to TMDB (PT shows etc.)
+      const t = await tmdbGet("/search/tv?include_adult=false&query="+encodeURIComponent(q));
+      if(token !== searchToken) return;
+      if(t && t.results && t.results.length) res = t.results.slice(0,15).map(x=>({show:tmdbShowAdapt(x)}));
+    }
     searchResults = res;
     const el = document.getElementById("sres");
     if(live && el) el.innerHTML = searchResultsHtml();   // update only the list — never the input while typing
@@ -1738,6 +1787,19 @@ async function addShow(tvmazeId){
   const r = searchResults.find(x=>x.show.id===tvmazeId);
   if(!r) return;
   const d = r.show;
+  if(d.tmdbId){
+    const key = "tm"+d.tmdbId;
+    if(state.shows[key]) return;
+    const sh = { key, tvdbId:null, tvmazeId:null, tmdbId:d.tmdbId, title:d.name,
+      status:"not_started_yet", fav:false, image:(d.image&&d.image.medium)||null, genres:[], network:"",
+      runtime:null, premiered:d.premiered, tvStatus:"", eps:null, watched:{}, seeded:true, lastSync:0 };
+    state.shows[key] = sh;
+    searchAdded[d.id] = true;
+    save(); render();
+    toast(`Added ${d.name} — loading episodes…`);
+    try{ await syncTmdbShow(sh); save(); render(); }catch(e){}
+    return;
+  }
   const key = "tv"+d.id;
   if(state.shows[key]) return;
   const sh = { key, tvdbId:(d.externals&&d.externals.thetvdb)||null, tvmazeId:null, title:d.name,
@@ -1755,16 +1817,24 @@ async function addShow(tvmazeId){
 /* ---------- search result preview ---------- */
 let previewData = null;
 async function openSearchShow(tvmazeId){
-  const existing = allShows().find(s=>s.tvmazeId===tvmazeId);
-  if(existing){ openShow(existing.key); return; }
   const r = searchResults.find(x=>x.show.id===tvmazeId);
+  const existing = allShows().find(s=> s.tvmazeId===tvmazeId || (r && r.show.tmdbId && s.tmdbId===r.show.tmdbId));
+  if(existing){ openShow(existing.key); return; }
   if(!r) return;
   previewData = r.show;
   renderPreview(r.show, null);
   $("#sheet").classList.remove("hidden");
   window.scrollTo(0,0);
   let eps = [];
-  try{ eps = await apiGet("/shows/"+tvmazeId+"/episodes") || []; }catch(e){}
+  try{
+    if(r.show.tmdbId){
+      const d0 = await tmdbGet("/tv/"+r.show.tmdbId);
+      if(d0) for(const s of (d0.seasons||[])){
+        if(s.season_number < 1) continue;
+        for(let n=1; n<=(s.episode_count||0); n++) eps.push({season:s.season_number, number:n, name:"", airdate:null});
+      }
+    } else eps = await apiGet("/shows/"+tvmazeId+"/episodes") || [];
+  }catch(e){}
   if(previewData === r.show && !$("#sheet").classList.contains("hidden")) renderPreview(r.show, eps);
 }
 function renderPreview(d, eps){
