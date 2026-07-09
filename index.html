@@ -371,9 +371,9 @@ const SEED=[];
 <script>
 "use strict";
 /* ============ Episotia — personal TV tracker ============ */
-/* v2.18.0 */
-const APP_VERSION = "2.18.0";
-const WHATS_NEW = "Cloud sync fixed for big libraries (the \"couldn't read cloud data\" bug), TMDB-added shows are recognized in search, and TMDB links/covers survive syncing.";
+/* v2.18.1 */
+const APP_VERSION = "2.18.1";
+const WHATS_NEW = "The My Shows filter is now instant — no more lag or eaten letters while typing.";
 const API = "https://api.tvmaze.com";
 const LS_KEY = "episotia.v1";
 const LS_OLD = "showtime.v1";
@@ -1457,20 +1457,30 @@ function viewUpcoming(){
 }
 let showFilter = "all", showQuery = "";
 function viewShows(){
-  let items = allShows();
-  if(showFilter==="fav") items = items.filter(s=>s.fav);
-  else if(showFilter!=="all") items = items.filter(s=>s.status===showFilter);
-  if(showQuery) items = items.filter(s=>s.title.toLowerCase().includes(showQuery.toLowerCase()));
-  items.sort((a,b)=>a.title.localeCompare(b.title));
   const counts = {};
   for(const s of allShows()) counts[s.status] = (counts[s.status]||0)+1;
-  let h = `<div class="searchbar"><div class="inputwrap"><input id="show-q" placeholder="Filter my ${allShows().length} shows…" value="${esc(showQuery)}" oninput="showQuery=this.value;renderKeepFocus('show-q')">${showQuery?`<button class="clearbtn" onclick="showQuery='';render()">✕</button>`:""}</div></div>
+  let h = `<div class="searchbar"><div class="inputwrap"><input id="show-q" placeholder="Filter my ${allShows().length} shows…" value="${esc(showQuery)}" oninput="showQuery=this.value;libLive();const b=this.nextElementSibling;if(b)b.style.display=this.value?'flex':'none'"><button class="clearbtn" style="display:${showQuery?"flex":"none"}" onclick="showQuery='';render();const i=document.getElementById('show-q');if(i)i.focus()">✕</button></div></div>
   <div class="chips stick below-search">
     <button class="chip ${showFilter==="all"?"act":""}" onclick="showFilter='all';render()">All</button>
     <button class="chip gold ${showFilter==="fav"?"act":""}" onclick="showFilter='fav';render()">★ Favorites</button>
     ${Object.entries(STATUSES).map(([k,v]) =>
       `<button class="chip ${showFilter===k?"act":""}" onclick="showFilter='${k}';render()">${v.label} (${counts[k]||0})</button>`).join("")}
-  </div><div class="grid">`;
+  </div><div id="lres">${showsListHtml()}</div>`;
+  return h;
+}
+let libTimer = null;
+function libLive(){
+  // update only the grid — never re-render the input while typing (lesson from the search tabs)
+  clearTimeout(libTimer);
+  libTimer = setTimeout(()=>{ const el = document.getElementById("lres"); if(el) el.innerHTML = showsListHtml(); }, 120);
+}
+function showsListHtml(){
+  let items = allShows();
+  if(showFilter==="fav") items = items.filter(s=>s.fav);
+  else if(showFilter!=="all") items = items.filter(s=>s.status===showFilter);
+  if(showQuery) items = items.filter(s=>s.title.toLowerCase().includes(showQuery.toLowerCase()));
+  items.sort((a,b)=>a.title.localeCompare(b.title));
+  let h = `<div class="grid">`;
   for(const sh of items){
     const wc = watchedCount(sh), tot = totalRegular(sh);
     const pct = tot ? Math.round(wc/tot*100) : 0;
