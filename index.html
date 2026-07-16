@@ -372,8 +372,8 @@ const SEED=[];
 "use strict";
 /* ============ Episotia — personal TV tracker ============ */
 /* v2.18.1 */
-const APP_VERSION = "2.18.1";
-const WHATS_NEW = "The My Shows filter is now instant — no more lag or eaten letters while typing.";
+const APP_VERSION = "2.19.0";
+const WHATS_NEW = "Syncing is now smart: the app asks TVmaze what actually changed and only updates those shows — opens are near-instant, and it checks quietly in the background every time you open.";
 const API = "https://api.tvmaze.com";
 const LS_KEY = "episotia.v1";
 const LS_OLD = "showtime.v1";
@@ -693,13 +693,12 @@ async function syncShow(sh){
     if(!d){ sh.lookupFailed = true; return false; }
     applyMeta(sh, d);
     await sleep(420);
-  } else {
-    const d = await apiGet("/shows/"+sh.tvmazeId);
-    if(d) applyMeta(sh, d);
-    await sleep(420);
   }
-  const eps = await apiGet("/shows/"+sh.tvmazeId+"/episodes");
-  if(eps) applyEps(sh, eps);
+  // v2.19.0: one request instead of two — show meta + full episode list together
+  const d = await apiGet("/shows/"+sh.tvmazeId+"?embed=episodes");
+  if(!d) return false;
+  applyMeta(sh, d);
+  if(d._embedded && d._embedded.episodes) applyEps(sh, d._embedded.episodes);
   return true;
 }
 function setSyncPill(txt){
@@ -707,28 +706,57 @@ function setSyncPill(txt){
   if(txt===null){ p.classList.remove("on"); return; }
   p.classList.add("on"); $("#sync-txt").textContent = txt;
 }
-async function syncAll(full=false){
+async function syncAll(full=false, quiet=false){
   checkAppUpdate();
   if(syncing) return;
   syncing = true;
   const day = 86400000;
   let list = allShows().filter(sh => {
-    if(!sh.tvmazeId) return !sh.lookupFailed || full;
+    if(!sh.tvmazeId && !sh.tmdbId) return !sh.lookupFailed || full;
     if(!sh.eps) return true;
     if(full) return true;
     if(sh.tvStatus==="Ended" && sh.seeded) return false;      // ended + already loaded: nothing new
-    return Date.now() - sh.lastSync > day;                     // running shows: refresh daily
+    return Date.now() - (sh.lastSync||0) > day;                // running shows: refresh daily
   });
+  // v2.19.0: ONE request asks TVmaze which shows changed recently, instead of
+  // re-downloading every running show daily. Shows confirmed unchanged upstream are
+  // stamped fresh and skipped — a typical daily sync becomes 1 request + a few shows.
+  if(!full && list.length){
+    const canSkip = sh => sh.tvmazeId && sh.eps && !sh.tmdbId;   // first fetch / TMDB: no shortcut
+    const oldest = list.reduce((m,sh)=> canSkip(sh) ? Math.min(m, sh.lastSync||0) : m, Date.now());
+    const age = Date.now() - oldest;
+    const since = age < day ? "day" : age < 7*day ? "week" : age < 30*day ? "month" : null;
+    if(since && list.some(canSkip)){
+      let upd = null;
+      try{ upd = await apiGet("/updates/shows?since="+since); }catch(e){}
+      if(upd){
+        const now = Date.now();
+        let stamped = false;
+        list = list.filter(sh => {
+          if(!canSkip(sh)) return true;
+          if((upd[sh.tvmazeId]||0)*1000 > (sh.lastSync||0)) return true;  // changed upstream
+          sh.lastSync = now; stamped = true;                              // unchanged — stamp fresh
+          return false;
+        });
+        if(stamped) save();
+      }
+    }
+  }
   const prio = {watching:0, up_to_date:1, not_started_yet:2, watch_later:2, stopped:3};
   list.sort((a,b)=> (prio[a.status]??2)-(prio[b.status]??2));
-  if(!list.length){ syncing=false; setSyncPill(null); toast("Everything is up to date ✓"); return; }
+  if(!list.length){
+    state.lastGlobalSync = Date.now(); save();                 // count this as a completed check
+    syncing=false; setSyncPill(null);
+    if(!quiet) toast("Everything is up to date ✓");
+    return;
+  }
   let done=0, fails=0;
   for(const sh of list){
     setSyncPill(`Syncing ${done+1}/${list.length}`);
     try{ const ok = await syncShow(sh); if(!ok) fails++; }
     catch(e){ fails++; }
     done++;
-    if(done%8===0){
+    if(done%4===0){
       save();
       const ae = document.activeElement;           // don't wipe what the user is typing
       if(!ae || (ae.tagName!=="INPUT" && ae.tagName!=="TEXTAREA")) render();
@@ -738,7 +766,8 @@ async function syncAll(full=false){
   state.lastGlobalSync = Date.now();
   save(); render();
   syncing=false; setSyncPill(null);
-  toast(fails ? `Sync done — ${fails} show(s) need manual matching` : "Sync complete ✓");
+  if(fails) toast(`Sync done — ${fails} show(s) need manual matching`);
+  else if(!quiet) toast("Sync complete ✓");
 }
 
 /* ---------- cloud sync (GitHub Gist, optional) ---------- */
@@ -828,7 +857,7 @@ async function gistPull(){
       applyingRemote = false;
       applyTheme(); render();
       toast("Synced from cloud ☁", 2000);
-      if(needEps) setTimeout(()=>syncAll(false), 600);
+      if(needEps) setTimeout(()=>syncAll(false, true), 600);
     } else if((state.updatedAt||0) > (remote.updatedAt||0)){
       scheduleGistPush();
     }
@@ -2278,9 +2307,10 @@ $("#btn-sync").onclick = () => syncAll(false);
 $("#btn-settings").onclick = openSettings;
 render();
 if(state.gist && state.gist.token) gistPull();
-// first run: start syncing automatically; later: refresh if stale (>20h)
-const stale = allShows().length && (Date.now() - (state.lastGlobalSync||0) > 20*3600000);
-if(stale) setTimeout(()=>syncAll(false), 800);
+// auto-refresh on every open (cheap since v2.19.0 — one "what changed" request),
+// throttled to once per 30 min; quiet so nothing pops up when there's nothing new
+const stale = allShows().length && (Date.now() - (state.lastGlobalSync||0) > 30*60000);
+if(stale) setTimeout(()=>syncAll(false, true), 800);
 setTimeout(checkAppUpdate, 1500);
 
 </script>
