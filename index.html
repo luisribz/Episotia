@@ -379,7 +379,7 @@ const SEED=[];
 "use strict";
 /* ============ Episotia — personal TV tracker ============ */
 /* v2.18.1 */
-const APP_VERSION = "2.20.1";
+const APP_VERSION = "2.20.2";
 const WHATS_NEW = "Ratings are here: rate episodes and shows 1–10, see your friends\u2019 ratings and your circle\u2019s average, plus the real IMDb rating on every episode and show.";
 const API = "https://api.tvmaze.com";
 const LS_KEY = "episotia.v1";
@@ -815,13 +815,39 @@ function flushGistPush(){
   // Fire it right now; a fetch already in flight usually completes.
   if(gistPushTimer){ clearTimeout(gistPushTimer); gistPushTimer = null; gistPush(); }
 }
-document.addEventListener("visibilitychange", () => { if(document.visibilityState === "hidden") flushGistPush(); });
+let lastVisRefresh = 0;
+document.addEventListener("visibilitychange", () => {
+  if(document.visibilityState === "hidden"){ flushGistPush(); return; }
+  // v2.20.2: returning to an already-open tab/app — long-open PC tabs never re-pulled,
+  // so they grew stale and then stomped the cloud with old state on their next push.
+  if(Date.now() - lastVisRefresh < 60000) return;
+  lastVisRefresh = Date.now();
+  if(state && state.gist && state.gist.token) gistPull();
+  checkAppUpdate();
+  if(allShows().length && Date.now() - (state.lastGlobalSync||0) > 30*60000) setTimeout(()=>syncAll(false, true), 500);
+});
 window.addEventListener("pagehide", flushGistPush);
 async function gistPush(){
   if(!state.gist || !state.gist.token || !state.gist.id) return;
   try{
+    // v2.20.2: check the cloud first — if another device pushed since we last saw it,
+    // merge its changes in before overwriting (blind PATCH was erasing the other
+    // device's marks; "seen" tracks the last cloud updatedAt this device incorporated).
+    try{
+      const content = await gistFileContent(await gistApi("GET", "/gists/"+state.gist.id));
+      if(content){
+        const remote = JSON.parse(content);
+        if(remote && remote.shows && (remote.updatedAt||0) > (state.gist.seen||0)){
+          mergeRemote(remote);
+          state.updatedAt = Date.now();
+          const ae = document.activeElement;
+          if(!ae || (ae.tagName!=="INPUT" && ae.tagName!=="TEXTAREA")) render();
+        }
+      }
+    }catch(e){ if(e.message==="auth") throw e; }             // unreadable cloud: push local anyway (old behavior)
     await gistApi("PATCH", "/gists/"+state.gist.id, { files: { [GIST_FILE]: { content: JSON.stringify(syncedState()) } } });
     state.gist.lastPush = Date.now();
+    state.gist.seen = state.updatedAt;                        // the cloud now holds exactly this state
     localStorage.setItem(LS_KEY, JSON.stringify(state)); // persist lastPush without re-scheduling
     feedPush();
   }catch(e){
@@ -892,6 +918,7 @@ async function gistPull(){
       // does THIS device have changes it never managed to push? then merge, don't clobber
       if((state.updatedAt||0) > ((state.gist && state.gist.lastPush)||0)){
         mergeRemote(remote);
+        state.gist.seen = remote.updatedAt || 0;
         save();                                              // bumps updatedAt + schedules push → cloud gets the union
         applyTheme(); render();
         toast("Merged with cloud ☁", 2000);
@@ -916,14 +943,17 @@ async function gistPull(){
       }
       state = remote;
       state.gist = gist;
+      state.gist.seen = remote.updatedAt || 0;
+      state.gist.lastPush = Date.now();                       // device now equals the cloud — not dirty
       state.settings = state.settings || {theme:"system"};
       localStorage.setItem(LS_KEY, JSON.stringify(state));
       applyingRemote = false;
       applyTheme(); render();
       toast("Synced from cloud ☁", 2000);
       if(needEps) setTimeout(()=>syncAll(false, true), 600);
-    } else if((state.updatedAt||0) > (remote.updatedAt||0)){
-      scheduleGistPush();
+    } else {
+      state.gist.seen = Math.max(state.gist.seen||0, remote.updatedAt||0);
+      if((state.updatedAt||0) > (remote.updatedAt||0)) scheduleGistPush();
     }
   }catch(e){
     if(e.message==="auth") toast("Cloud sync: token invalid — reconnect in Settings", 4000);
@@ -973,6 +1003,8 @@ async function connectGist(){
             if(!remote.shows[k].eps && loc && loc.eps){ remote.shows[k].eps = loc.eps; remote.shows[k].lastSync = loc.lastSync||0; }
           }
           state = remote; state.gist = gist;
+          state.gist.seen = remote.updatedAt || 0;
+          state.gist.lastPush = Date.now();
           state.settings = state.settings || {theme:"system"};
           applyingRemote = false;
         }
