@@ -277,6 +277,13 @@ h2.sec{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--
 .epmeta{font-size:12px;color:var(--tx3);margin-bottom:8px}
 .epimg{width:100%;border-radius:12px;margin:4px 0 12px;aspect-ratio:16/9;object-fit:cover;background:var(--bg3)}
 .eprating{display:flex;align-items:center;gap:6px;color:var(--gold);font-weight:800;font-size:15px;margin-bottom:4px}
+.stars{display:flex;gap:1px;margin:4px 0 2px}
+.st{font-size:22px;line-height:1;color:var(--tx3);cursor:pointer;padding:2px 1px;user-select:none;-webkit-user-select:none}
+.st.on{color:var(--gold)}
+.raterow{margin-top:12px}
+.raterow .rl{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--gold);font-weight:800;margin-bottom:2px}
+.imdbtag{display:inline-flex;align-items:center;gap:5px;font-weight:800;color:var(--tx);font-size:13.5px}
+.imdbtag b{color:var(--acc)}
 .eprating svg{width:16px;height:16px;fill:var(--gold);stroke:none}
 .epsum{font-size:13.5px;color:var(--tx2);line-height:1.65;margin:8px 0 6px}
 
@@ -372,8 +379,8 @@ const SEED=[];
 "use strict";
 /* ============ Episotia — personal TV tracker ============ */
 /* v2.18.1 */
-const APP_VERSION = "2.19.0";
-const WHATS_NEW = "Syncing is now smart: the app asks TVmaze what actually changed and only updates those shows — opens are near-instant, and it checks quietly in the background every time you open.";
+const APP_VERSION = "2.20.1";
+const WHATS_NEW = "Ratings are here: rate episodes and shows 1–10, see your friends\u2019 ratings and your circle\u2019s average, plus the real IMDb rating on every episode and show.";
 const API = "https://api.tvmaze.com";
 const LS_KEY = "episotia.v1";
 const LS_OLD = "showtime.v1";
@@ -636,6 +643,7 @@ function applyMeta(sh, d){
   sh.runtime = d.averageRuntime || d.runtime || sh.runtime;
   sh.premiered = d.premiered || null;
   sh.tvStatus = d.status || "";
+  if(d.externals && d.externals.imdb) sh.imdbId = d.externals.imdb;
 }
 function applyEps(sh, eps){
   sh.eps = eps.map(e => ({ s:e.season, n:e.number, t:e.name||"", a:e.airdate||null, r:e.runtime||null }));
@@ -673,6 +681,10 @@ async function syncTmdbShow(sh){
   sh.runtime = (d.episode_run_time&&d.episode_run_time[0])||sh.runtime;
   sh.premiered = d.first_air_date || null;
   sh.tvStatus = (d.status==="Ended"||d.status==="Canceled") ? "Ended" : (d.status||"");
+  if(!sh.imdbId){
+    const ext = await tmdbGet("/tv/"+sh.tmdbId+"/external_ids");
+    if(ext && ext.imdb_id) sh.imdbId = ext.imdb_id;
+  }
   const eps = [];
   for(const s of (d.seasons||[])){
     if(s.season_number < 1) continue;                        // specials handled like TVmaze (s>=1 only)
@@ -798,6 +810,13 @@ function scheduleGistPush(){
   clearTimeout(gistPushTimer);
   gistPushTimer = setTimeout(gistPush, 3000);
 }
+function flushGistPush(){
+  // iOS suspends the page the moment it's hidden — a pending debounced push would die.
+  // Fire it right now; a fetch already in flight usually completes.
+  if(gistPushTimer){ clearTimeout(gistPushTimer); gistPushTimer = null; gistPush(); }
+}
+document.addEventListener("visibilitychange", () => { if(document.visibilityState === "hidden") flushGistPush(); });
+window.addEventListener("pagehide", flushGistPush);
 async function gistPush(){
   if(!state.gist || !state.gist.token || !state.gist.id) return;
   try{
@@ -822,6 +841,42 @@ async function gistFileContent(g){
   }
   return f.content || null;
 }
+function mergeRemote(remote){
+  // union-merge the cloud state into local — used when BOTH sides changed since the
+  // device's last successful push (wholesale last-writer-wins was eating the
+  // slower device's unpushed watch marks; user-reported 2026-07-16).
+  for(const k in (remote.shows||{})){
+    const inc = remote.shows[k], cur = state.shows[k];
+    if(!cur){ state.shows[k] = inc; continue; }               // new show from the other device (eps refetched by syncAll)
+    inc.watched = inc.watched || {};
+    for(const wk in inc.watched){
+      const v = inc.watched[wk];
+      // union; a real date beats legacy 1; the EARLIER real date wins (first watch)
+      if(!(wk in cur.watched) || (cur.watched[wk] <= 1 && v > 1) || (v > 1 && cur.watched[wk] > 1 && v < cur.watched[wk])) cur.watched[wk] = v;
+    }
+    if(inc.rw){
+      cur.rw = cur.rw || {};
+      for(const rk in inc.rw){ const a = cur.rw[rk] = cur.rw[rk] || []; for(const ts of inc.rw[rk]) if(a.indexOf(ts) === -1) a.push(ts); }
+    }
+    if(inc.myRating && (!cur.myRating || inc.myRating.ts > cur.myRating.ts)) cur.myRating = inc.myRating;
+    if(inc.epRatings){
+      cur.epRatings = cur.epRatings || {};
+      for(const rk in inc.epRatings) if(!cur.epRatings[rk] || inc.epRatings[rk].ts > cur.epRatings[rk].ts) cur.epRatings[rk] = inc.epRatings[rk];
+    }
+    if(!cur.tmdbId && inc.tmdbId && !cur.tvmazeId){ cur.tmdbId = inc.tmdbId; delete cur.lookupFailed; }
+    if(!cur.imdbId && inc.imdbId) cur.imdbId = inc.imdbId;
+    if(!cur.image && inc.image) cur.image = inc.image;
+    autoStatus(cur);                                          // local status kept; recomputed from merged marks
+  }
+  const seen = {};
+  for(const c of (state.comments||[])) seen[c.ts + "|" + (c.text||"")] = 1;
+  for(const c of (remote.comments||[])) if(!seen[c.ts + "|" + (c.text||"")]) (state.comments = state.comments || []).push(c);
+  if(state.comments){ state.comments.sort((a,b)=>b.ts-a.ts); state.comments = state.comments.slice(0,100); }
+  const fid = {};
+  for(const f of (state.friends||[])) fid[f.id] = 1;
+  for(const f of (remote.friends||[])) if(!fid[f.id]) (state.friends = state.friends || []).push(f);
+  if(remote.feed && !state.feed) state.feed = remote.feed;
+}
 async function gistPull(){
   if(!state.gist || !state.gist.token || !state.gist.id) return;
   try{
@@ -834,6 +889,15 @@ async function gistPull(){
     // safety: never let an empty cloud silently wipe a device with data
     if(!Object.keys(remote.shows).length && Object.keys(state.shows).length){ scheduleGistPush(); return; }
     if((remote.updatedAt||0) > (state.updatedAt||0)){
+      // does THIS device have changes it never managed to push? then merge, don't clobber
+      if((state.updatedAt||0) > ((state.gist && state.gist.lastPush)||0)){
+        mergeRemote(remote);
+        save();                                              // bumps updatedAt + schedules push → cloud gets the union
+        applyTheme(); render();
+        toast("Merged with cloud ☁", 2000);
+        if(allShows().some(sh => !sh.eps && !sh.lookupFailed)) setTimeout(()=>syncAll(false, true), 600);
+        return;
+      }
       applyingRemote = true;
       const gist = state.gist;
       // graft local episode metadata back in (eps don't travel in the gist since v2.17.0)
@@ -946,7 +1010,7 @@ function feedItems(){
 }
 async function feedPush(){
   if(!state.feed || !state.feed.on || !state.gist || !state.gist.token) return;
-  const body = JSON.stringify({ name: state.feed.name || "Anonymous", updatedAt: Date.now(), items: feedItems(), comments: (state.comments||[]).slice(0,30) });
+  const body = JSON.stringify({ name: state.feed.name || "Anonymous", updatedAt: Date.now(), items: feedItems(), comments: (state.comments||[]).slice(0,30), ratings: feedRatings() });
   try{
     if(!state.feed.id){
       const g = await gistApi("POST","/gists",{ description:"Episotia activity feed", public:true, files:{ [FEED_FILE]:{ content: body } } });
@@ -957,6 +1021,105 @@ async function feedPush(){
     }
   }catch(e){}
 }
+/* ---------- ratings (v2.20.0) ---------- */
+function setEpRating(key, s, n, v){
+  const sh = state.shows[key]; if(!sh) return;
+  sh.epRatings = sh.epRatings || {};
+  const k = s+"-"+n;
+  if(sh.epRatings[k] && sh.epRatings[k].v === v){ delete sh.epRatings[k]; if(!Object.keys(sh.epRatings).length) delete sh.epRatings; }
+  else sh.epRatings[k] = { v, ts: Date.now() };
+  save();
+  renderEpisode(key, s, n);
+}
+function setShowRating(key, v){
+  const sh = state.shows[key]; if(!sh) return;
+  if(sh.myRating && sh.myRating.v === v) delete sh.myRating;
+  else sh.myRating = { v, ts: Date.now() };
+  save();
+  if(currentSheetKey===key) renderSheet(key);
+}
+function starRowHtml(cur, onclickTpl){
+  // onclickTpl contains {V} which is replaced by the star value; tap your current rating again to clear it
+  let h = '<div class="stars">';
+  for(let i=1;i<=10;i++) h += '<span class="st '+(cur>=i?"on":"")+'" onclick="'+onclickTpl.replace("{V}", i)+'">★</span>';
+  return h+'</div>';
+}
+function rateMatch(r, sh, s, n){
+  if(((r.s===undefined||r.s===null)?null:r.s) !== (s===undefined||s===null?null:s)) return false;
+  if(((r.n===undefined||r.n===null)?null:r.n) !== (n===undefined||n===null?null:n)) return false;
+  if(r.id && sh.tvmazeId) return r.id === sh.tvmazeId;
+  return (r.show||"").toLowerCase() === (sh.title||"").toLowerCase();
+}
+function friendRatingsHtml(sh, s, n){
+  const fr = (friendsCache.ratings||[]).filter(r => rateMatch(r, sh, s===undefined?null:s, n===undefined?null:n));
+  if(!fr.length) return "";
+  const avg = fr.reduce((a,r)=>a+r.v,0)/fr.length;
+  return '<div class="epmeta" style="margin-top:4px">'+
+    fr.map(r=>'<span style="color:var(--gold);font-weight:700">'+esc(r.who)+'</span> <b style="color:var(--acc)">'+r.v+'</b>').join(" · ")+
+    (fr.length>1 ? ' · friends avg <b style="color:var(--acc)">'+avg.toFixed(1)+'</b>' : '')+
+  '</div>';
+}
+function feedRatings(){
+  const out = [];
+  for(const k in state.shows){
+    const sh = state.shows[k];
+    if(sh.myRating) out.push({ show: sh.title, id: sh.tvmazeId||null, v: sh.myRating.v, ts: sh.myRating.ts });
+    for(const ek in (sh.epRatings||{})){
+      const p = ek.split("-");
+      out.push({ show: sh.title, id: sh.tvmazeId||null, s:+p[0], n:+p[1], v: sh.epRatings[ek].v, ts: sh.epRatings[ek].ts });
+    }
+  }
+  out.sort((a,b)=>b.ts-a.ts);
+  return out.slice(0,150);
+}
+/* IMDb ratings via OMDb (key ships with the app like the TMDB one; empty = feature hidden) */
+const OMDB_KEY = atob("YjYwOWQxOGI=");   // read-only OMDb key, ships with the app like the TMDB one
+const OMDB_LS = "episotia.omdb";
+let omdbCache = null;
+function omdbCacheLoad(){ if(!omdbCache){ try{ omdbCache = JSON.parse(localStorage.getItem(OMDB_LS)||"{}"); }catch(e){ omdbCache = {}; } } }
+async function omdbGet(params){
+  if(!OMDB_KEY) return null;
+  omdbCacheLoad();
+  const hit = omdbCache[params];
+  if(hit && Date.now()-hit.ts < 7*86400000) return hit.d;      // 7-day cache — protects the shared daily quota
+  try{
+    const r = await fetch("https://www.omdbapi.com/?apikey="+OMDB_KEY+"&"+params);
+    if(!r.ok) return hit ? hit.d : null;
+    const d = await r.json();
+    if(d.Response==="False") return null;
+    omdbCache[params] = { d, ts: Date.now() };
+    const ks = Object.keys(omdbCache);
+    if(ks.length > 200){ ks.sort((a,b)=>omdbCache[a].ts-omdbCache[b].ts); for(const k of ks.slice(0,50)) delete omdbCache[k]; }
+    try{ localStorage.setItem(OMDB_LS, JSON.stringify(omdbCache)); }catch(e){}
+    return d;
+  }catch(e){ return hit ? hit.d : null; }
+}
+async function ensureImdbId(sh){
+  if(sh.imdbId || !sh.tvmazeId) return;
+  // older-synced shows never re-fetch meta under smart sync — grab the id once on demand
+  try{
+    const d = await apiGet("/shows/"+sh.tvmazeId);
+    if(d && d.externals && d.externals.imdb){ sh.imdbId = d.externals.imdb; save(); }
+  }catch(e){}
+}
+async function imdbShowHtml(sh){
+  if(!OMDB_KEY) return "";
+  await ensureImdbId(sh);
+  if(!sh.imdbId) return "";
+  const d = await omdbGet("i="+sh.imdbId);
+  if(!d || !d.imdbRating || d.imdbRating==="N/A") return "";
+  return '<span class="imdbtag">IMDb <b>'+esc(d.imdbRating)+'</b>'+(d.imdbVotes&&d.imdbVotes!=="N/A"?' <span style="color:var(--tx3);font-weight:600;font-size:11.5px">('+esc(d.imdbVotes)+')</span>':'')+'</span>';
+}
+async function imdbEpHtml(sh, s, n){
+  if(!OMDB_KEY) return "";
+  await ensureImdbId(sh);
+  if(!sh.imdbId) return "";
+  const d = await omdbGet("i="+sh.imdbId+"&Season="+s);
+  const e = d && d.Episodes && d.Episodes.find(x => +x.Episode === n);
+  if(!e || !e.imdbRating || e.imdbRating==="N/A") return "";
+  return '<span class="imdbtag">IMDb <b>'+esc(e.imdbRating)+'</b></span>';
+}
+
 function cmtMatch(c, sh, s, n){
   if(c.s !== s || c.n !== n) return false;
   if(c.id && sh.tvmazeId) return c.id === sh.tvmazeId;
@@ -1054,10 +1217,10 @@ function openFriends(){
   $("#modal").classList.remove("hidden");
   $("#modal").onclick = closeModal;
 }
-let friendsCache = {ts:0, rows:[], comments:[], loading:false};
+let friendsCache = {ts:0, rows:[], comments:[], ratings:[], loading:false};
 async function loadFriendFeeds(){
   friendsCache.loading = true;
-  const rows = [], cms = [];
+  const rows = [], cms = [], rts = [];
   await Promise.all((state.friends||[]).map(async f => {
     try{
       const r = await fetch("https://api.github.com/gists/"+f.id);
@@ -1074,10 +1237,16 @@ async function loadFriendFeeds(){
         cms.push(cm);
         rows.push({ who: cm.who, ts: cm.ts, show: cm.show, s: cm.s, n: cm.n, comment: cm.text });
       }
+      let rn = 0;
+      for(const rt of (d.ratings||[])){
+        const rr = { who: d.name || f.u, id: rt.id || null, show: rt.show, s: rt.s, n: rt.n, ts: rt.ts, v: rt.v };
+        rts.push(rr);
+        if(rn++ < 10) rows.push({ who: rr.who, ts: rr.ts, show: rr.show, s: rr.s, n: rr.n, rating: rr.v });  // only the 10 freshest per friend in the activity feed
+      }
     }catch(e){}
   }));
   rows.sort((a,b)=>b.ts-a.ts);
-  friendsCache = {ts: Date.now(), rows: rows.slice(0,100), comments: cms, loading:false};
+  friendsCache = {ts: Date.now(), rows: rows.slice(0,100), comments: cms, ratings: rts, loading:false};
   if(tab==="towatch" && twFilter==="friends") render();
 }
 function viewFriends(){
@@ -1093,6 +1262,8 @@ function viewFriends(){
         <div class="ht" style="color:var(--gold)">${esc(r.who)}</div>
         ${r.comment
           ? `<div class="hs" style="white-space:normal;line-height:1.5">💬 ${esc(r.comment)}<br><span class="epcode">${epCode(r.s,r.n)}</span> · ${esc(r.show)}</div>`
+          : r.rating
+          ? `<div class="hs"><span style="color:var(--gold)">★ ${r.rating}</span> · ${esc(r.show)}${r.s!=null?` · <span class="epcode">${epCode(r.s,r.n)}</span>`:` · overall`}</div>`
           : `<div class="hs">${r.rw?`<span class="rwbadge">↻</span> `:""}${esc(r.show)} · <span class="epcode">${epCode(r.s,r.n)}</span></div>`}
       </div>
       <div class="hd">${agoStr(r.ts)}</div>
@@ -1638,6 +1809,8 @@ function openShow(key){
   if(!sh) return;
   listScroll = window.scrollY || 0;
   currentSheetKey = key;
+  if((state.friends||[]).length && Date.now() - friendsCache.ts > 5*60000 && !friendsCache.loading)
+    loadFriendFeeds().then(() => { if(currentSheetKey===key) renderSheet(key); });
   openSeasons = {};
   const nx = sh.eps && nextUnwatched(sh);
   if(nx) openSeasons[nx.s] = true;
@@ -1713,6 +1886,12 @@ function renderSheet(key){
       <div class="dpr"><span><b>${wc}</b> / ${tot} episodes</span><span>${pct}%</span></div>
       <div class="progress"><i class="${tot&&wc>=tot?"full":""}" style="width:${pct}%"></i></div>
     </div>
+    ${(()=>{
+      const mr = sh.myRating;
+      return `<div class="raterow"><div class="rl">Your rating${mr?` · <span style="color:var(--acc)">${mr.v}/10</span>`:""} <span id="imdb-show" style="float:right;text-transform:none;letter-spacing:0"></span></div>
+      ${starRowHtml(mr?mr.v:0, `setShowRating('${key}',{V})`)}
+      ${friendRatingsHtml(sh, null, null)}</div>`;
+    })()}
     ${(()=>{const oc=orphanCount(sh);return oc?`<div class="note" style="margin-top:10px">↔ <b>${oc} watched mark${oc>1?"s":""}</b> from your import use different season numbering than TVmaze (Netflix "parts" vs broadcast seasons). They still count in Stats — just not in this bar. Tick the right episodes below if you want them to match.</div>`:"";})()}
     <div class="statusrow">
       ${Object.entries(STATUSES).map(([k,v])=>
@@ -1725,6 +1904,10 @@ function renderSheet(key){
     </div>
     ${seasonsHtml}
   </div>`;
+  imdbShowHtml(sh).then(h => {
+    const el = document.getElementById("imdb-show");
+    if(h && el && currentSheetKey===key) el.innerHTML = h;
+  });
 }
 function markAllUi(key){ markAll(state.shows[key]); renderSheet(key); }
 function markSeasonUi(key, sn){ markSeason(state.shows[key], sn); renderSheet(key); }
@@ -1792,6 +1975,11 @@ async function openEpisode(key, s, n){
     catch(e){}
   }
   renderEpisode(key, s, n);
+  // IMDb rating arrives async into its placeholder — no full re-render (protects a comment being typed)
+  imdbEpHtml(sh, s, n).then(h => {
+    const el = document.getElementById("imdb-ep");
+    if(h && el && epCtx && epCtx.key===key && epCtx.s===s && epCtx.n===n) el.innerHTML = h;
+  });
 }
 function renderEpisode(key, s, n){
   const sh = state.shows[key];
@@ -1810,6 +1998,7 @@ function renderEpisode(key, s, n){
     <div class="epmeta"><span class="epcode">${epCode(s,n)}</span> · ${esc(sh.title)}${air?" · "+fmtDate(air):" · TBA"}${run?" · "+run+" min":""}</div>
     ${img?`<img class="epimg" src="${esc(img)}" alt="">`:""}
     ${rating?`<div class="eprating">${I.star}${Number(rating).toFixed(1)}<span style="color:var(--tx3);font-weight:600;font-size:12px">/10 · TVmaze community</span></div>`:""}
+    <div id="imdb-ep" class="epmeta"></div>
     ${sum?`<div class="epsum">${esc(sum)}</div>`:`<div class="epsum" style="color:var(--tx3)">${future?"Not aired yet.":"No description available."}</div>`}
     ${on&&sh.watched[s+"-"+n]>1?`<div class="epmeta" style="color:var(--green);font-weight:700">✓ Watched ${fmtDate(new Date(sh.watched[s+"-"+n]).toISOString().slice(0,10))}${rwList(sh,s+"-"+n).length?` <span style="color:var(--gold)">· ↻ ${playCount(sh,s+"-"+n)}× total</span>`:""}</div>`:(on?`<div class="epmeta" style="color:var(--green);font-weight:700">✓ Watched (date unknown)${rwList(sh,s+"-"+n).length?` <span style="color:var(--gold)">· ↻ ${playCount(sh,s+"-"+n)}× total</span>`:""}</div>`:"")}
     <div class="actions" style="margin:10px 0 0">
@@ -1818,6 +2007,12 @@ function renderEpisode(key, s, n){
       ${d&&d.url?`<button class="abtn" onclick="window.open('${esc(d.url)}','_blank')">TVmaze</button>`:""}
       <button class="abtn" onclick="window.open(redditUrl(state.shows['${key}'],${s},${n}),'_blank')">Reddit</button>
     </div>
+    ${(()=>{
+      const mr = sh.epRatings && sh.epRatings[s+"-"+n];
+      return `<div class="raterow"><div class="rl">Your rating${mr?` · <span style="color:var(--acc)">${mr.v}/10</span>`:""}</div>
+      ${starRowHtml(mr?mr.v:0, `setEpRating('${key}',${s},${n},{V})`)}
+      ${friendRatingsHtml(sh, s, n)}</div>`;
+    })()}
     ${epCommentsHtml(sh, s, n, key)}
   </div>`;
 }
