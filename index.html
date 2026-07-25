@@ -379,8 +379,8 @@ const SEED=[];
 "use strict";
 /* ============ Episotia — personal TV tracker ============ */
 /* v2.18.1 */
-const APP_VERSION = "2.21.0";
-const WHATS_NEW = "Episotia now works offline: open it anywhere \u2014 your shows, episodes and ticks are all there, and everything syncs the moment you\u2019re back online.";
+const APP_VERSION = "2.21.2";
+const WHATS_NEW = "Offline got better: posters and episode images you\u2019ve seen are now kept on your device and show up without a connection.";
 const API = "https://api.tvmaze.com";
 const LS_KEY = "episotia.v1";
 const LS_OLD = "showtime.v1";
@@ -2102,6 +2102,18 @@ function qLive(){
 async function doSearch(live){
   const q = $("#q").value.trim();
   if(!q) return;
+  if(typeof navigator !== "undefined" && navigator.onLine === false){
+    // offline: no TVmaze/TMDB — offer matches from the user's own library instead of a dead box
+    const ql = q.toLowerCase();
+    const mine = allShows().filter(sh => (sh.title||"").toLowerCase().indexOf(ql) >= 0).slice(0,20);
+    const el = document.getElementById("sres");
+    if(el) el.innerHTML = `<div class="note">You're offline — searching for new shows needs a connection.${mine.length?" From your library:":""}</div>` +
+      mine.map(sh => `<div class="hrow" style="cursor:pointer" onclick="openShow('${sh.key}')">
+        ${sh.image?`<img src="${esc(sh.image)}" alt="" style="width:34px;height:48px;object-fit:cover;border-radius:6px">`:""}
+        <div class="hinfo"><div class="ht">${esc(sh.title)}</div><div class="hs">in your library</div></div>
+      </div>`).join("");
+    return;
+  }
   lastSearchQ = q;
   const token = ++searchToken;
   if(!live) toast("Searching…",1200);

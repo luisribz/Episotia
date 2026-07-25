@@ -1,9 +1,13 @@
-/* Episotia service worker — offline app shell (v2.21.0)
-   Strategy: network-first for everything same-origin (updates keep arriving the moment
-   you're online), falling back to the cached copy when offline. API calls (TVmaze, TMDB,
-   OMDb, GitHub) and images are NOT intercepted — the app handles those failing gracefully.
-   The cache refreshes itself on every successful fetch, so this file rarely needs changes. */
+/* Episotia service worker — offline app shell + image cache (v2.21.1)
+   Shell: network-first for everything same-origin (updates keep arriving the moment
+   you're online), falling back to the cached copy when offline.
+   Images (posters/stills/backdrops, cross-origin): cache-first with a size cap — seen
+   once, available offline forever (image URLs are stable; new art = new URL).
+   API calls (TVmaze, TMDB, OMDb, GitHub) are NOT intercepted — the app handles those
+   failing gracefully. */
 const CACHE = "episotia-shell-v1";
+const IMG_CACHE = "episotia-img-v1";
+const IMG_MAX = 800;
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-192-v5.png", "./icon-512-v5.png", "./apple-touch-icon-v5.png"];
 
 self.addEventListener("install", e => {
@@ -13,7 +17,7 @@ self.addEventListener("install", e => {
 self.addEventListener("activate", e => {
   e.waitUntil(
     caches.keys()
-      .then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(ks => Promise.all(ks.filter(k => k !== CACHE && k !== IMG_CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -24,10 +28,37 @@ function cacheKey(req){
   return u.href;
 }
 
+let trimming = false;
+async function trimImgCache(c){
+  if(trimming) return;
+  trimming = true;
+  try{
+    const keys = await c.keys();
+    if(keys.length > IMG_MAX)
+      for(const k of keys.slice(0, keys.length - IMG_MAX)) await c.delete(k);  // insertion order ≈ oldest first
+  }catch(e){}
+  trimming = false;
+}
+
 self.addEventListener("fetch", e => {
   if(e.request.method !== "GET") return;
   const url = new URL(e.request.url);
-  if(url.origin !== location.origin) return;   // never intercept APIs / CDN images
+
+  // posters / episode stills / hero backdrops — cache-first, any origin
+  if(e.request.destination === "image" && url.origin !== location.origin){
+    e.respondWith(
+      caches.open(IMG_CACHE).then(c =>
+        c.match(e.request).then(m => m || fetch(e.request).then(r => {
+          if(r.ok || r.type === "opaque"){ c.put(e.request, r.clone()); trimImgCache(c); }
+          return r;
+        }))
+      )
+    );
+    return;
+  }
+
+  if(url.origin !== location.origin) return;   // never intercept APIs
+
   e.respondWith(
     fetch(e.request).then(r => {
       if(r.ok){
