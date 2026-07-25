@@ -379,8 +379,8 @@ const SEED=[];
 "use strict";
 /* ============ Episotia — personal TV tracker ============ */
 /* v2.18.1 */
-const APP_VERSION = "2.20.3";
-const WHATS_NEW = "Ratings are here: rate episodes and shows 1–10, see your friends\u2019 ratings and your circle\u2019s average, plus the real IMDb rating on every episode and show.";
+const APP_VERSION = "2.21.0";
+const WHATS_NEW = "Episotia now works offline: open it anywhere \u2014 your shows, episodes and ticks are all there, and everything syncs the moment you\u2019re back online.";
 const API = "https://api.tvmaze.com";
 const LS_KEY = "episotia.v1";
 const LS_OLD = "showtime.v1";
@@ -725,6 +725,10 @@ function setSyncPill(txt){
   p.classList.add("on"); $("#sync-txt").textContent = txt;
 }
 async function syncAll(full=false, quiet=false){
+  if(typeof navigator !== "undefined" && navigator.onLine === false){
+    if(!quiet) toast("You're offline — will sync when you're back", 2800);
+    return;
+  }
   checkAppUpdate();
   if(syncing) return;
   syncing = true;
@@ -833,6 +837,11 @@ document.addEventListener("visibilitychange", () => {
   if(allShows().length && Date.now() - (state.lastGlobalSync||0) > 30*60000) setTimeout(()=>syncAll(false, true), 500);
 });
 window.addEventListener("pagehide", flushGistPush);
+window.addEventListener("online", () => {
+  // back from offline: reconcile with the cloud first, then refresh episodes quietly
+  if(state && state.gist && state.gist.token) gistPull();
+  setTimeout(()=>syncAll(false, true), 1200);
+});
 async function gistPush(){
   if(!state.gist || !state.gist.token || !state.gist.id) return;
   try{
@@ -2557,6 +2566,9 @@ if(state.gist && state.gist.token) gistPull();
 const stale = allShows().length && (Date.now() - (state.lastGlobalSync||0) > 30*60000);
 if(stale) setTimeout(()=>syncAll(false, true), 800);
 setTimeout(checkAppUpdate, 1500);
+// offline shell (v2.21.0): sw.js caches the app so it opens without a connection
+if("serviceWorker" in navigator && location.protocol === "https:")
+  navigator.serviceWorker.register("sw.js").catch(()=>{});
 
 </script>
 </body>
