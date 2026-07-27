@@ -8,7 +8,7 @@
 const CACHE = "episotia-shell-v1";
 const IMG_CACHE = "episotia-img-v1";
 const IMG_MAX = 800;
-const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-192-v5.png", "./icon-512-v5.png", "./apple-touch-icon-v5.png"];
+const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-192-v6.png", "./icon-512-v6.png", "./apple-touch-icon-v6.png"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
